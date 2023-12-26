@@ -25,7 +25,7 @@ not been the primary objective of the project.
 
 # Installation
 
-First, generate a [Discogs API token](https://www.discogs.com/settings/developers)
+First, generate a [Discogs API token](https://www.discogs.com/settings/developers).
 
 ```sh
 git clone https://github.com/hejops/dita
@@ -42,4 +42,10 @@ Scripts that you will probably want to use include:
 1. [`convert.py`](./file/convert.py) -- convert most audio codecs to MP3
 1. [`play.py`](./play/pmp.py) -- play music
 
-Exploring the rest of the codebase is an exercise left to the reader.
+Exploring the rest of the codebase is an exercise left to the reader. Most
+important methods are at least decently documented.
+
+# Contributing
+
+If you find any issues or need any help, please file an [issue](/issues). [Pull
+requests](/pulls) are also welcome.
