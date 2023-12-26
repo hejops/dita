@@ -47,5 +47,6 @@ important methods are at least decently documented.
 
 # Contributing
 
-If you find any issues or need any help, please file an [issue](/issues). [Pull
-requests](/pulls) are also welcome.
+If you find any issues or need any help, please file an
+[issue](https://github.com/hejops/dita/issues). [Pull
+requests](https://github.com/hejops/dita/pulls) are also welcome.
