@@ -1,0 +1,29 @@
+# 2023-12-22
+# Python 3.11.6
+bs4
+datetime
+filetype
+flatdict
+levenshtein
+liteconfig
+mutagen
+natsort
+numpy
+pandas
+pathlib
+psutil
+pyfzf
+pytest
+readchar
+readline
+requests
+st-clickable-images
+streamlit
+tabulate
+termcolor
+tinytag
+titlecase
+tqdm
+typing
+unidecode
+yt-dlp

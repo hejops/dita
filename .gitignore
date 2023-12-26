@@ -1,0 +1,13 @@
+
+*.csv
+*.json
+*.log
+*.txt
+*/target*
+
+*_token
+.venv/*
+__pycache__
+venv/*
+
+!requirements.txt

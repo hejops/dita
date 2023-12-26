@@ -1,0 +1,31 @@
+[paths]
+source_dir =
+target_dir =
+
+[discogs]
+username =
+token =
+database = discogs/db.csv
+
+[convert]
+filetypes = aif,aiff,ape,flac,m4a,mp3,ogg,opus,wav,wma
+bitrate = 0
+
+[tag]
+album_suffixes_to_remove = ep,lp,demo,split,etc,deluxe,cs
+genre_suffixes_to_remove =
+genres = tag/genres.csv
+moved = tag/moved.txt
+staged = tag/staged.txt
+titlecase_exceptions = tag/titlecase_exceptions.txt
+
+[lastfm]
+token =
+username =
+
+[play]
+before = discogs
+database = play/db.txt
+nowplaying = play/nowplaying.txt
+queue = play/queue.txt
+sort_year = True
