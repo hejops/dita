@@ -24,10 +24,6 @@ from tagfuncs import tcase_with_exc
 # from unidecode import unidecode
 # from tagfuncs import tabulate_dict
 
-# ARTIST_MAX_ITEMS = 1000
-# Metallica 3.3k / Mozart 43k
-ARTIST_MAX_ITEMS = 5000
-
 
 class Artist:  # {{{
     """Retrieve Discogs releases by an artist.
@@ -42,19 +38,25 @@ class Artist:  # {{{
         per_page: releases per page (sent in GET request)
     """
 
+    # Metallica 3.3k / Mozart 43k
+    max_items = 5000
+
+    # if an artist's first release is from before min_year, always start at a
+    # random page instead of page 1
+    # Miles Davis (8k, first release 1947)
+    # Stevie Wonder (12k, first release 1962)
+    min_year = 1945
+
+    page: int = 1
+    per_page: int = 100  # 100 is safest to avoid http 502
+    position: int = 0  # position in the list
+
     def __init__(
         self,
         a_id: int,
-        page: int = 1,
-        per_page: int = 100,  # 100 is safest to avoid http 502
     ):
         # static, will never change
         self.a_id = a_id
-        self.per_page = per_page
-
-        # dynamic
-        self.page = page
-        self.position = 0  # position in the list
 
         results = self.get_releases()
         # print(results)
@@ -65,11 +67,15 @@ class Artist:  # {{{
         self.total = results["pagination"]["items"]
         # print(self.total)
 
-        # Stevie Wonder (12k, first release 1962)
-
-        if len(self) > ARTIST_MAX_ITEMS and results["releases"][0]["year"] < 1950:
-            print(len(self), "releases, first release:", results["releases"][0]["year"])
-            # raise ValueError
+        if (
+            len(self) > self.max_items
+            and results["releases"][0]["year"] < self.min_year
+        ):
+            print(
+                len(self),
+                "releases, first release:",
+                results["releases"][0]["year"],
+            )
             self.page = choice(range(1, len(self) // self.per_page))
             results = self.get_releases()
 
@@ -193,8 +199,10 @@ class Artist:  # {{{
     def get_releases(self) -> dict[str, Any]:
         """Fetch artist releases, starting on page 1 by default."""
         results = dc.d_get(
-            f"/artists/{self.a_id}/releases?sort=year"
-            f"&per_page={self.per_page}&page={self.page}",
+            (
+                f"/artists/{self.a_id}/releases?sort=year"
+                f"&per_page={self.per_page}&page={self.page}"
+            ),
             verbose=True,
         )
         return results
@@ -397,8 +405,10 @@ class Label(Artist):
 
     def get_releases(self) -> dict[str, Any]:
         results = dc.d_get(
-            f"/labels/{self.a_id}/releases?sort=year"
-            f"&per_page={self.per_page}&page={self.page}",
+            (
+                f"/labels/{self.a_id}/releases?sort=year"
+                f"&per_page={self.per_page}&page={self.page}"
+            ),
             verbose=True,
         )
         return results
@@ -408,15 +418,28 @@ class Label(Artist):
         return dc.d_get(str(self.releases.id[0]))["labels"][0]["name"]
 
 
-def get_transliterations(artist_dicts: list[dict[str, Any]]) -> dict[str, list[str]]:
+def get_transliterations(
+    rel: dict,
+    # artist_dicts: list[dict[str, Any]],
+) -> dict[str, list[str]]:
     """Append transliteration (in parentheses) to artist name for ease of
     reading/indexing. Discogs-approved transliterations are tried first.
     { 'artist1': 'artist1 (abc)', ... }
 
+    If 'artistX' has no transliterations, it is excluded from the dict.
+
     Warning: dict keys are lowercase
     """
 
+    artist_dicts = rel["artists"]
     # print(artists_dict)
+
+    try:
+        # corner case: non-ascii in artist track credits only
+        # https://www.discogs.com/release/892711
+        artist_dicts += [t["artists"][0] for t in rel["tracklist"]]
+    except KeyError:
+        pass
 
     transliterations: dict[str, list[str]] = {}
 
