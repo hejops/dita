@@ -35,9 +35,15 @@ tqdm = "^4.66.1"
 unidecode = "^1.3.8"
 yt-dlp = "^2023.12.30"
 python-mpv = "^1.0.5"
+pylint = "^3.0.3"
 
 [tool.poetry.scripts]
-mover = "file.mover:main"
+convert_files = "dita.file.convert:main"
+discogs_rate = "dita.discogs.rate:main"
+discogs_release = "dita.discogs.release:main"
+fix_tags = "dita.tag.fix:main"
+move_files = "dita.file.mover:main"
+pmp = "dita.play.pmp:main"
 
 [build-system]
 requires = ["poetry-core"]
