@@ -1047,7 +1047,7 @@ def order_files_by_duration(
     return ref_df.fname.to_list()
 
 
-def main(dirs_to_tag: list[str]):
+def tag_all(dirs_to_tag: list[str]):
     """Initialise a Tagger on all directories (does not recurse for you). Can
     automate tagging without user input.
     """
@@ -1088,14 +1088,13 @@ def main(dirs_to_tag: list[str]):
         print(f"{staged}/{len(dirs_to_tag)} directories passed")
 
 
-TTY = sys.__stdin__.isatty()
-
-if __name__ == "__main__":
+def main():
     assert SOURCE_DIR
     assert TARGET_DIR
 
     if len(sys.argv) == 2 and sys.argv[-1] in ["-a", "--auto"]:
         sys.argv.pop()
+        global TTY
         TTY = False
 
     if len(sys.argv) == 1:
@@ -1125,8 +1124,13 @@ if __name__ == "__main__":
         sys.exit(0)
 
     try:
-        main(dirs)
+        tag_all(dirs)
         dump_staged_dirs()
     except Exception as exc:
         dump_staged_dirs()
         raise exc
+
+
+if __name__ == "__main__":
+    TTY = sys.__stdin__.isatty()
+    main()
