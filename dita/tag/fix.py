@@ -229,9 +229,11 @@ class Tagger:
         right = self.df.tags.apply(pd.Series)
         self.df = self.df[self.df.columns.difference(right.columns)]
         # print(right, self.df)
-        self.df = self.df.merge(right, left_index=True, right_index=True).applymap(
-            tags_to_columns
-        )
+        self.df = self.df.merge(
+            right,
+            left_index=True,
+            right_index=True,
+        ).map(tags_to_columns)
 
     def try_auto(self) -> bool:  # {{{
         """
