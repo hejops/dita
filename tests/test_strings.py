@@ -1,6 +1,7 @@
-import discogs.core as dc
-import discogs.release
 import tagfuncs
+
+import dita.discogs.core as dc
+import dita.discogs.release
 
 
 # https://www.discogs.com/release/12168132

@@ -1,9 +1,8 @@
-import os
-
+# import os
 import pytest
 
-from file.mover import generate_symlinks
-from file.mover import truncate_filename
+from dita.file.mover import generate_symlinks
+from dita.file.mover import truncate_filename
 
 
 def test_truncate():
@@ -21,9 +20,15 @@ def test_truncate():
 
     assert (
         truncate_filename(
-            "/aaa/bbbbb/cccccc/dddddddd/music/John Dwyer, Ryan Sawyer, Peter Kerlin, Brad Caulkins, Kyp Malone, Tom Dolas, Marcos Rodriguez, Andres Renteria, Ben Boye, Laena Myers-Ionita, Joce Soubrian/Moon-Drenched (2021)/05 Get Thee To The Rookery.mp3"
+            "/aaa/bbbbb/cccccc/dddddddd/music/John Dwyer, Ryan Sawyer, Peter Kerlin,"
+            " Brad Caulkins, Kyp Malone, Tom Dolas, Marcos Rodriguez, Andres Renteria,"
+            " Ben Boye, Laena Myers-Ionita, Joce Soubrian/Moon-Drenched (2021)/05 Get"
+            " Thee To The Rookery.mp3"
         )
-        == "/aaa/bbbbb/cccccc/dddddddd/music/John Dwyer, Ryan Sawyer, Peter Kerlin, Brad Caulkins, Kyp Malone, Tom Dolas, Marcos Rodriguez, Andres Renteria, Ben Boye, Laena Myers-Ionita, Joce Soubrian/Moon-Drenched (2021)/05 Get Thee To The Rookery.mp3"
+        == "/aaa/bbbbb/cccccc/dddddddd/music/John Dwyer, Ryan Sawyer, Peter Kerlin,"
+        " Brad Caulkins, Kyp Malone, Tom Dolas, Marcos Rodriguez, Andres Renteria,"
+        " Ben Boye, Laena Myers-Ionita, Joce Soubrian/Moon-Drenched (2021)/05 Get"
+        " Thee To The Rookery.mp3"
     )
 
 

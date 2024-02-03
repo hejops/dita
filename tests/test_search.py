@@ -1,6 +1,6 @@
 from json.decoder import JSONDecodeError
 
-import discogs.core as dc
+import dita.discogs.core as dc
 
 
 # get_primary_url()

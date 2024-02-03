@@ -1,8 +1,8 @@
 import pytest
 
-from discogs.artist import Artist
-from discogs.artist import get_artist_id
-from discogs.artist import Label
+from dita.discogs.artist import Artist
+from dita.discogs.artist import get_artist_id
+from dita.discogs.artist import Label
 
 # def get_transliterations(artist_id: str) -> list[str]:
 #     # artist_id = 4126661

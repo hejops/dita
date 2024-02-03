@@ -1,6 +1,6 @@
 import pandas as pd
 
-import discogs.collection
+import dita.discogs.collection
 
 test_dict = {
     "title": {
