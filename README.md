@@ -25,25 +25,37 @@ not been the primary objective of the project.
 
 ## Installation
 
-First, generate a [Discogs API token](https://www.discogs.com/settings/developers).
+- Install [poetry](https://python-poetry.org/docs/#installation)
+- Generate a [Discogs API token](https://www.discogs.com/settings/developers)
 
 ```sh
 git clone https://github.com/hejops/dita
 cd dita
-pip install -r requirements.txt
+# in case you want to remove existing installation
+# ~/.cache/pypoetry/virtualenvs/dita-*
+poetry install
+poetry run fix_tags
 ```
+
+Configuration will be initialised through a few simple prompts. The
+[configuration file](./dita/config) can be edited subsequently.
 
 ## Usage
 
-Scripts that you will probably want to use include:
+Some convenient entry points are defined as follows:
 
-1. [`fix.py`](./dita/tag/fix.py) -- tag MP3 files
-1. [`mover.py`](./dita/file/mover.py) -- move files to a central location
-1. [`convert.py`](./dita/file/convert.py) -- convert most audio codecs to MP3
-1. [`pmp.py`](./dita/play/pmp.py) -- play music
+- [`poetry run convert_files`](./dita/file/convert.py)
+- [`poetry run discogs_rate`](./dita/discogs/rate.py)
+- [`poetry run discogs_release`](./dita/discogs/release.py)
+- [`poetry run fix_tags`](./dita/tag/fix.py)
+- [`poetry run move_files`](./dita/file/mover.py)
+- [`poetry run pmp`](./dita/play/pmp.py)
 
-Exploring the rest of the codebase is an exercise left to the reader. Most
-important methods are at least decently documented.
+To invoke the scripts from any location, add the following to your `.bashrc`:
+
+```sh
+export PATH=$PATH:~/.cache/pypoetry/virtualenvs/dita-*/bin
+```
 
 ## Contributing
 
