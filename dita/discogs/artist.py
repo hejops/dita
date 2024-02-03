@@ -503,7 +503,7 @@ def get_artist_id(
         artist id
     """
 
-    def foo(data):
+    def get_id_and_title(data):
         # description field may not always be present
         # [data.columns.intersection(["id", "title", "description"])]
         return data[["id", "title"]].reset_index(drop=True)
@@ -512,14 +512,9 @@ def get_artist_id(
 
     try:
         data = pd.DataFrame(dc.d_get(search_url, verbose=True)["results"])
-        # print(data)
+        print(data)
     except KeyError:
         eprint("Invalid search term:", artist_name)
-        return 0
-
-    # assert "user_data" in data, data
-    # usually 2 artists credited together e.g. 'N + Ehnahre'
-    if data.empty:
         return 0
 
     # unidecode(art["title"].lower())
@@ -527,15 +522,21 @@ def get_artist_id(
     # print(data)
     # raise ValueError
 
-    if ", " in artist_name:
-        if "id" not in data.columns or artist_name not in data.title.iloc[0]:
-            artist = artist_name.split(", ")[0]
-            return get_artist_id(artist)
+    # assert "user_data" in data, data
+    # usually 2 artists credited together e.g. 'N + Ehnahre'
+    if data.empty:
+        if ", " in artist_name:
+            if "id" not in data.columns or artist_name not in data.title.iloc[0]:
+                artist = artist_name.split(", ")[0]
+                return get_artist_id(artist)
+
+        else:
+            return 0
 
     # exact_matches = data[data.title.str.lower() == artist_name.lower()]
     # print(exact_matches)
     if not check_coll:
-        return select_from_list(foo(data), "Artist id").id
+        return select_from_list(get_id_and_title(data), "Artist id").id
 
     # note: collection check is not unit-testable
     # for testing, maybe allow an optional arg for list[int] of ids?
@@ -560,13 +561,13 @@ def get_artist_id(
     # # raise ValueError
 
     if not data.in_col.any():
-        return select_from_list(foo(data), "Artist id").id
+        return select_from_list(get_id_and_title(data), "Artist id").id
 
-    in_col = data[data.in_col.eq(True)]
+    in_coll = data[data.in_col.eq(True)]
 
-    matches_in_col = pd.merge(
+    matches_in_coll = pd.merge(
         left=partial_matches[["id", "title"]],
-        right=in_col[["id", "title", "in_col"]],
+        right=in_coll[["id", "title", "in_col"]],
         how="inner",
         # on="id",  # all columns not specified will be duplicated
     )
@@ -574,17 +575,17 @@ def get_artist_id(
     # print("Name matches in collection")
     # print(matches_in_col)
 
-    if len(matches_in_col) == 1:
-        return matches_in_col.id.iloc[0]
+    if len(matches_in_coll) == 1:
+        return matches_in_coll.id.iloc[0]
 
-    if not matches_in_col.empty:
+    if not matches_in_coll.empty:
         return select_from_list(
-            foo(data[data.id.isin(matches_in_col.id)]),
+            get_id_and_title(data[data.id.isin(matches_in_coll.id)]),
             "Artist id",
         ).id
 
     return select_from_list(
-        foo(data[data.id.isin(in_col.id)]),
+        get_id_and_title(data[data.id.isin(in_coll.id)]),
         "Artist id",
     ).id.values[0]
 
