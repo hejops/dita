@@ -15,7 +15,8 @@ import requests
 
 import dita.discogs.core as dc
 from dita.config import TARGET_DIR
-from dita.discogs import artist
+from dita.discogs.artist import Artist
+from dita.discogs.artist import Label
 from dita.discogs.core import search_with_relpath
 from dita.tag.core import lprint
 from dita.tag.core import shuote
@@ -362,7 +363,7 @@ def rate_from_str(_str: str):
     rate_release(rel, rating=rating, rerate=True)
 
 
-if __name__ == "__main__":
+def main():
     # discogs.artist.Label(195387).rate_all()
     # raise ValueError
 
@@ -374,13 +375,13 @@ if __name__ == "__main__":
     if "/release/" in sys.argv[1]:
         rate_release(dc.d_get(dc.get_id_from_url(sys.argv[1])))
     elif "/artist/" in sys.argv[1]:
-        artist.Artist(dc.get_id_from_url(sys.argv[1])).rate_all()
+        Artist(dc.get_id_from_url(sys.argv[1])).rate_all()
     elif "/label/" in sys.argv[1]:
-        artist.Label(dc.get_id_from_url(sys.argv[1])).rate_all()
+        Label(dc.get_id_from_url(sys.argv[1])).rate_all()
     elif "," in sys.argv[1]:
         rate_from_str(sys.argv[1])
     elif os.path.isfile(sys.argv[1]):
-        with open(sys.argv[1], "r") as f:
+        with open(sys.argv[1], "r", encoding="utf-8") as f:
             for l in f.readlines():
                 if "," not in l:
                     break
@@ -388,12 +389,16 @@ if __name__ == "__main__":
 
     else:
         if sys.argv[1].isnumeric():
-            A_ID = int(sys.argv[1])
+            artist_id = int(sys.argv[1])
         else:  # artist name
-            A_ID = artist.get_artist_id(
+            artist_id = artist.get_artist_id(
                 " ".join(sys.argv[1:]),
                 check_coll=False,
             )
 
         # rate_releases_of_artist(filter_by_role(discogs.artist.Artist(aid).releases))
-        artist.Artist(A_ID).rate_all()
+        Artist(artist_id).rate_all()
+
+
+if __name__ == "__main__":
+    main()
