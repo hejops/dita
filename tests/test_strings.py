@@ -1,4 +1,4 @@
-import tagfuncs
+import dita.tag.core
 
 import dita.discogs.core as dc
 import dita.discogs.release
@@ -6,7 +6,7 @@ import dita.discogs.release
 
 # https://www.discogs.com/release/12168132
 def test_is_ascii():
-    assert not tagfuncs.is_ascii("Тамара Гвердцители, Дмитрий Дюжев")
+    assert not dita.tag.core.is_ascii("Тамара Гвердцители, Дмитрий Дюжев")
 
 
 def test_release_print():
@@ -24,7 +24,7 @@ def test_release_print():
 
 
 def test_list_diff():
-    from tagfuncs import align_lists
+    from dita.tag.core import align_lists
 
     left = ["aaa", "bbb", "ccc", "ddd", "eee"]
     right = ["aaa", "ccc", "eee", "fff"]
@@ -70,7 +70,7 @@ def test_list_diff():
 
 
 def test_open_url():
-    from tagfuncs import open_url
+    from dita.tag.core import open_url
 
     assert (
         open_url(
@@ -130,11 +130,17 @@ def test_open_url():
 
 def test_clean_artist():
     artists = {
-        "Oval Five, The Featuring Natacha Atlas": "The Oval Five Featuring Natacha Atlas",
+        "Oval Five, The Featuring Natacha Atlas": (
+            "The Oval Five Featuring Natacha Atlas"
+        ),
         "Beatles, The": "The Beatles",
-        "Morton Feldman - Turfan Ensemble, The, Philipp Vandré": "Morton Feldman, The Turfan Ensemble, Philipp Vandré",
+        "Morton Feldman - Turfan Ensemble, The, Philipp Vandré": (
+            "Morton Feldman, The Turfan Ensemble, Philipp Vandré"
+        ),
         # corner case: https://www.discogs.com/release/1477527
-        "Mike Love, Bruce Johnston, David Marks Of The Beach Boys, The": "Mike Love, Bruce Johnston, David Marks of the Beach Boys",
+        "Mike Love, Bruce Johnston, David Marks Of The Beach Boys, The": (
+            "Mike Love, Bruce Johnston, David Marks of the Beach Boys"
+        ),
     }
     for key, val in artists.items():
         assert dc.clean_artist(key) == val  # , r
