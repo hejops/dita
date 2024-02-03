@@ -27,11 +27,12 @@ import psutil
 from mutagen import File
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3NoHeaderError
-from tabulate import tabulate
 from termcolor import colored
 from titlecase import titlecase
 
 from dita.config import load_titlecase_exceptions
+
+# from tabulate import tabulate
 
 # from mutagen.easyid3 import ID3
 

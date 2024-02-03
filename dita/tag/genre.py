@@ -26,15 +26,15 @@ from dita.config import PATH
 from dita.config import SOURCE_DIR
 from dita.config import TARGET_DIR
 from dita.file.convert import glob_full
-from dita.tagfuncs import add_headers
-from dita.tagfuncs import file_to_tags
-from dita.tagfuncs import get_audio_files
-from dita.tagfuncs import select_from_list
-from dita.tagfuncs import set_tag
-from dita.tagfuncs import shallow_recurse
+from dita.tag.core import add_headers
+from dita.tag.core import file_to_tags
+from dita.tag.core import get_audio_files
+from dita.tag.core import select_from_list
+from dita.tag.core import set_tag
+from dita.tag.core import shallow_recurse
 
-# from tagfuncs import is_audio_file
-# from tagfuncs import save_tags
+# from tag.core import is_audio_file
+# from tag.core import save_tags
 
 GENRES_FILE = PATH + "/" + CONFIG["tag"]["genres"]
 GENRE_SUFFIXES = CONFIG["tag"]["genre_suffixes_to_remove"].split(",")

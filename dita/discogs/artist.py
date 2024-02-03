@@ -14,13 +14,13 @@ import readchar
 
 import dita.discogs.core as dc
 from dita.discogs import rate
-from dita.tagfuncs import eprint
-from dita.tagfuncs import is_ascii
-from dita.tagfuncs import select_from_list
+from dita.tag.core import eprint
+from dita.tag.core import is_ascii
+from dita.tag.core import select_from_list
 
-# from dita.tagfuncs import open_url
-# from dita.tagfuncs import tcase_with_exc
-# from tagfuncs import tabulate_dict
+# from dita.tag.core import open_url
+# from dita.tag.core import tcase_with_exc
+# from tag.core import tabulate_dict
 # import dita.discogs.release
 
 

@@ -22,12 +22,9 @@ from titlecase import titlecase
 from dita.config import CONFIG
 from dita.config import PATH
 from dita.discogs import release
-from dita.tagfuncs import eprint
-from dita.tagfuncs import input_with_prefill
-from dita.tagfuncs import tabulate_dict
-
-# from tagfuncs import lprint
-# from tagfuncs import tcase_with_exc
+from dita.tag.core import eprint
+from dita.tag.core import input_with_prefill
+from dita.tag.core import tabulate_dict
 
 DISCOGS_CSV = PATH + "/" + CONFIG["discogs"]["database"]
 
@@ -572,7 +569,7 @@ def display_release_results(
     ids: list[str],
     num_tracks: int,
 ) -> dict:
-    """Only used in tagfix; may be replaced with the simpler display_release().
+    """Only used in tag.fix; may be replaced with the simpler display_release().
     Similar to try_auto(), might merge.
 
     Args:

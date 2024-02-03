@@ -27,9 +27,9 @@ from tqdm import tqdm
 
 from dita.config import CONFIG
 from dita.config import SOURCE_DIR
-from dita.tagfuncs import fill_tracknum
-from dita.tagfuncs import glob_full
-from dita.tagfuncs import is_audio_file
+from dita.tag.core import fill_tracknum
+from dita.tag.core import glob_full
+from dita.tag.core import is_audio_file
 
 # from mutagen.easyid3 import EasyID3
 # from mutagen.mp4 import MP4Tags

@@ -26,11 +26,11 @@ from dita.discogs.core import clean_artist
 from dita.discogs.core import d_get
 from dita.discogs.core import DISCOGS_CSV
 from dita.discogs.core import USERNAME
-from dita.tagfuncs import cprint
-from dita.tagfuncs import eprint
-from dita.tagfuncs import lprint
-from dita.tagfuncs import open_url
-from dita.tagfuncs import select_from_list
+from dita.tag.core import cprint
+from dita.tag.core import eprint
+from dita.tag.core import lprint
+from dita.tag.core import open_url
+from dita.tag.core import select_from_list
 
 
 VAL_DELIM = ":"  # prop:val

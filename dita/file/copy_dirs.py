@@ -31,8 +31,8 @@ from dita.discogs.collection import get_percentiles
 from dita.discogs.collection import group_collection_by_artist
 from dita.discogs.collection import top_n_sum
 from dita.discogs.core import DISCOGS_CSV
-from dita.tagfuncs import eprint
-from dita.tagfuncs import shallow_recurse
+from dita.tag.core import eprint
+from dita.tag.core import shallow_recurse
 
 # from discogs.core import clean_artist
 

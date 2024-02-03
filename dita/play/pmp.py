@@ -32,8 +32,8 @@ from dita.discogs.artist import Artist
 from dita.discogs.artist import get_artist_id
 from dita.discogs.core import search_with_relpath
 from dita.discogs.rate import rate_release
-from dita.tagfuncs import glob_full
-from dita.tagfuncs import open_url
+from dita.tag.core import glob_full
+from dita.tag.core import open_url
 
 # import pandas as pd
 # from discogs.browser import Browser

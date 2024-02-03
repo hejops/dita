@@ -17,12 +17,12 @@ import dita.discogs.core as dc
 from dita.config import TARGET_DIR
 from dita.discogs import artist
 from dita.discogs.core import search_with_relpath
-from dita.tagfuncs import lprint
-from dita.tagfuncs import shuote
+from dita.tag.core import lprint
+from dita.tag.core import shuote
 
 # from artist import Artist
-# from tagfuncs import PATH
-# from tagfuncs import eprint
+# from tag.core import PATH
+# from tag.core import eprint
 
 
 # can be config

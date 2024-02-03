@@ -33,20 +33,20 @@ from dita.discogs.core import d_get
 from dita.discogs.core import display_release_results
 from dita.discogs.core import search_release
 from dita.file import mover
-from dita.tagfuncs import align_lists
-from dita.tagfuncs import eprint
-from dita.tagfuncs import FIELD_ALIASES
-from dita.tagfuncs import file_to_tags
-from dita.tagfuncs import glob_full
-from dita.tagfuncs import input_with_prefill
-from dita.tagfuncs import is_ascii
-from dita.tagfuncs import is_audio_file
-from dita.tagfuncs import open_url
-from dita.tagfuncs import save_tags
-from dita.tagfuncs import select_from_list
-from dita.tagfuncs import set_tag
-from dita.tagfuncs import shallow_recurse
-from dita.tagfuncs import tcase_with_exc
+from dita.tag.core import align_lists
+from dita.tag.core import eprint
+from dita.tag.core import FIELD_ALIASES
+from dita.tag.core import file_to_tags
+from dita.tag.core import glob_full
+from dita.tag.core import input_with_prefill
+from dita.tag.core import is_ascii
+from dita.tag.core import is_audio_file
+from dita.tag.core import open_url
+from dita.tag.core import save_tags
+from dita.tag.core import select_from_list
+from dita.tag.core import set_tag
+from dita.tag.core import shallow_recurse
+from dita.tag.core import tcase_with_exc
 
 STAGED_DIRS = load_staged_dirs()
 
@@ -410,7 +410,7 @@ class Tagger:
         #     discogs_tags = discogs.release.apply_transliterations(
         #         transliterations, discogs_tags
         #     )
-        #     if all(tagfuncs.is_ascii(x) for x in discogs_tags.artist):
+        #     if all(tag.core.is_ascii(x) for x in discogs_tags.artist):
         #         return True
         #
         # elif TTY:

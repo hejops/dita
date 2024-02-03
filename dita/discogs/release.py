@@ -16,14 +16,14 @@ from titlecase import titlecase
 
 import dita.discogs.artist as da
 import dita.discogs.core as dc
-from dita.tagfuncs import eprint
-from dita.tagfuncs import extract_year
-from dita.tagfuncs import fill_tracknum
-from dita.tagfuncs import is_ascii
-from dita.tagfuncs import lprint
-from dita.tagfuncs import open_url
-from dita.tagfuncs import select_from_list
-from dita.tagfuncs import tcase_with_exc
+from dita.tag.core import eprint
+from dita.tag.core import extract_year
+from dita.tag.core import fill_tracknum
+from dita.tag.core import is_ascii
+from dita.tag.core import lprint
+from dita.tag.core import open_url
+from dita.tag.core import select_from_list
+from dita.tag.core import tcase_with_exc
 
 
 # def get_tracklist_total_duration(
@@ -254,12 +254,12 @@ def get_discogs_tags(release: dict) -> pd.DataFrame:  # {{{
         )
 
         # add transliterations to non-ascii composers
-        # see tagfix:trans_ok
+        # see tag.fix:trans_ok
         artists_not_ascii = [a for a in artists if not is_ascii(a)]
         if artists_not_ascii:
             transliterations = da.get_transliterations(release)
             discogs_tags = apply_transliterations(transliterations, discogs_tags)
-            # if all(tagfuncs.is_ascii(x) for x in discogs_tags.artist):
+            # if all(tag.core.is_ascii(x) for x in discogs_tags.artist):
             #     return True
 
             # # list(filter(a, performers) for a in artists)
@@ -582,6 +582,7 @@ def get_primary_url(release: dict) -> str:
 
 
 def main():
+    # arg inference should be replaced with explicit flags
     if sys.argv[1].startswith(dc.PREFIX):  # web url -> primary
         rel = dc.d_get(dc.web_url_to_api(sys.argv[1]))
         url = dc.api_url_to_web(get_primary_url(rel))
@@ -595,7 +596,7 @@ def main():
     elif sys.argv[1] == "--versions" and sys.argv[2].startswith(dc.PREFIX):
         # web url -> select version(s)
         # almost always called from browser
-        # will be integrated into tagfix at some point
+        # will be integrated into tag.fix at some point
 
         versions = get_versions_of_master(
             dc.d_get(sys.argv[2]),
