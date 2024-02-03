@@ -561,8 +561,8 @@ def get_primary_url(release: dict) -> str:
     # lprint(release)
 
     # master
-    if main := release.get("main_release_url"):
-        return main
+    if main_rel := release.get("main_release_url"):
+        return main_rel
 
     # release with master -- recurse
     if master_url := release.get("master_url"):
@@ -581,7 +581,7 @@ def get_primary_url(release: dict) -> str:
 #     lprint(x)
 
 
-if __name__ == "__main__":
+def main():
     if sys.argv[1].startswith(dc.PREFIX):  # web url -> primary
         rel = dc.d_get(dc.web_url_to_api(sys.argv[1]))
         url = dc.api_url_to_web(get_primary_url(rel))
@@ -614,14 +614,14 @@ if __name__ == "__main__":
 
     elif sys.argv[1].endswith(")"):  # relpath
         # artist, album = sys.argv[1].split("/")
-        r = dc.search_with_relpath(sys.argv[1])
+        rel = dc.search_with_relpath(sys.argv[1])
         # pprint(r)
 
-        if url := r.get("uri"):
+        if url := rel.get("uri"):
             # can probably just subprocess grep
 
             ids = pd.read_csv(dc.DISCOGS_CSV).id
-            if ids.isin([r.get("id")]).any():
+            if ids.isin([rel.get("id")]).any():
                 eprint("Already rated", url)
             else:
                 print(url)
@@ -630,18 +630,6 @@ if __name__ == "__main__":
             print(f"https://www.discogs.com/search/?q={query}&type=all")
             os.system(f"notify-send 'Not on discogs' {shlex.quote(sys.argv[1])}")
 
-    else:
-        ARGS = {
-            "--queue": {"action": "store_true", "help": "queue album"},
-            "--shuf-artist": {"action": "store_true", "help": "shuffle artist"},
-            "--no-log": {
-                "action": "store_false",
-                "dest": "log",
-                "help": "don't write np log",
-            },
-        }
 
-    # dic = {1: 2}
-    # print(dic[2])
-    # sys.exit()
-    # print()
+if __name__ == "__main__":
+    main()
