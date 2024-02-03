@@ -511,9 +511,7 @@ class Queue:
         sys.exit()
 
 
-if __name__ == "__main__":
-    queue = Queue()
-
+def main():
     parser = argparse.ArgumentParser(description="Play music")
 
     # parser.add_argument(
@@ -523,7 +521,7 @@ if __name__ == "__main__":
     #     # from <artist>",
     # )
 
-    ARGS = {
+    args = {
         "--queue": {"action": "store_true", "help": "queue album"},
         "--shuf-artist": {"action": "store_true", "help": "shuffle artist"},
         "--no-log": {
@@ -532,7 +530,8 @@ if __name__ == "__main__":
             "help": "don't write np log",
         },
     }
-    for arg, arg_opts in ARGS.items():
+
+    for arg, arg_opts in args.items():
         parser.add_argument(arg, **arg_opts)
 
     parser.add_argument(
@@ -562,6 +561,8 @@ if __name__ == "__main__":
     #     queue.play(queue.select_from_lib(), loop=False, log=args.log)
     #     queue.quit()
 
+    queue = Queue()
+
     if args.shuf_artist:
         queue.shuffle_artist()
 
@@ -582,3 +583,7 @@ if __name__ == "__main__":
         queue.menu()
 
     queue.quit()
+
+
+if __name__ == "__main__":
+    main()
