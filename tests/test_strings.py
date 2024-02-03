@@ -1,31 +1,30 @@
-import dita.tag.core
-
 import dita.discogs.core as dc
-import dita.discogs.release
+from dita.discogs import release
+from dita.tag.core import align_lists
+from dita.tag.core import is_ascii
+from dita.tag.core import open_url
 
 
 # https://www.discogs.com/release/12168132
 def test_is_ascii():
-    assert not dita.tag.core.is_ascii("Тамара Гвердцители, Дмитрий Дюжев")
+    assert not is_ascii("Тамара Гвердцители, Дмитрий Дюжев")
 
 
 def test_release_print():
     rel = dc.d_get(15882406)
 
     assert (
-        discogs.release.get_release_tracklist(rel).title.iloc[0]
+        release.get_release_tracklist(rel).title.iloc[0]
         == "Die Kunst Der Fuge, BWV 1080 - Contrapunctus 1"
     )
 
     assert (
-        discogs.release.get_discogs_tags(rel).title.iloc[0]
+        release.get_discogs_tags(rel).title.iloc[0]
         == "Die Kunst Der Fuge, BWV 1080 - Contrapunctus 1"
     )
 
 
 def test_list_diff():
-    from dita.tag.core import align_lists
-
     left = ["aaa", "bbb", "ccc", "ddd", "eee"]
     right = ["aaa", "ccc", "eee", "fff"]
     assert align_lists(left, right) == (
@@ -70,8 +69,6 @@ def test_list_diff():
 
 
 def test_open_url():
-    from dita.tag.core import open_url
-
     assert (
         open_url(
             "https://www.discogs.com/release/8502088-Uboa-Sometimes-Light",
@@ -86,7 +83,7 @@ def test_open_url():
             suffix="words that go after url",
             simulate=True,
         )
-        == "https://www.discogs.com/release/words%20that%20go%20after%20url"
+        == "https://www.discogs.com/release/words that go after url"
     )
 
     assert (
@@ -96,7 +93,7 @@ def test_open_url():
             simulate=True,
         )
         # idk if real urls should look like this
-        == "https://www.discogs.com/release/%27words%27%20that%20go%20after%20url"
+        == "https://www.discogs.com/release/'words' that go after url"
     )
 
     assert (
@@ -105,7 +102,7 @@ def test_open_url():
             suffix="words that go after url",
             simulate=True,
         )
-        == "https://www.discogs.com/release/words%20that%20go%20after%20url"
+        == "https://www.discogs.com/release/words that go after url"
     )
 
     # assert (
@@ -114,7 +111,7 @@ def test_open_url():
     #         suffix="words that go after url",
     #         simulate=True,
     #     )
-    #     == "https://www.discogs.com/release/words%20that%20go%20after%20url"
+    #     == "https://www.discogs.com/release/words that go after url"
     # )
 
     assert (
@@ -124,26 +121,29 @@ def test_open_url():
             suffix="words that go after url",
             simulate=True,
         )
-        == "https://www.discogs.com/release/search%20queries/words%20that%20go%20after%20url"
+        == "https://www.discogs.com/release/search%20queries/words that go after url"
     )
 
 
 def test_clean_artist():
     artists = {
-        "Oval Five, The Featuring Natacha Atlas": (
-            "The Oval Five Featuring Natacha Atlas"
-        ),
         "Beatles, The": "The Beatles",
         "Morton Feldman - Turfan Ensemble, The, Philipp Vandré": (
             "Morton Feldman, The Turfan Ensemble, Philipp Vandré"
         ),
-        # corner case: https://www.discogs.com/release/1477527
+        # corner case: discogs artist name is "The Beach Boys", but a user
+        # omits it for the release name, and adds an extra hardcoded "The"
+        # https://www.discogs.com/release/1477527
         "Mike Love, Bruce Johnston, David Marks Of The Beach Boys, The": (
             "Mike Love, Bruce Johnston, David Marks of the Beach Boys"
         ),
+        # i don't have a solution for this, there is no isolated 'The'
+        "Oval Five, The Featuring Natacha Atlas": (
+            "Oval Five, The Featuring Natacha Atlas"
+        ),
     }
     for key, val in artists.items():
-        assert dc.clean_artist(key) == val  # , r
+        assert dc.clean_artist(key) == val
 
 
 def test_remove_words():

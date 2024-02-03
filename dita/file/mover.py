@@ -150,10 +150,13 @@ class Mover:  # {{{
             # if len(sorted(self.targets.dest.to_list(), key=len)[-1]) > 255:
             # print(too_long)
             # raise Exception
-            self.targets.dest = self.targets.apply(
-                truncate_filename,
-                axis=1,
-            )
+
+            # self.targets.dest = self.targets.apply(
+            #     truncate_filename,
+            #     axis=1,
+            # )
+
+            self.targets.dest = self.targets.dest.apply(truncate_filename)
 
         # if dir has >99 files, all files must have tracknumber of len 3
         # TODO: tags are not updated (not strictly necessary)
@@ -643,7 +646,8 @@ def generate_symlinks(
 
 
 def truncate_filename(
-    row: pd.Series,
+    # row: pd.Series,
+    src_filename: str,
     max_artist_len: int = 160,  # https://www.discogs.com/master/2152342
     maxlen: int = 255,
 ) -> str:
@@ -653,12 +657,12 @@ def truncate_filename(
     unit testing.
     """
 
-    dest_filename = row.dest
+    dest_filename = src_filename  # .dest
     excess = len(dest_filename) - maxlen
 
     # print(excess)
 
-    assert "." in dest_filename, row
+    assert "." in dest_filename, src_filename
     fullpath, ext = dest_filename.rsplit(".", maxsplit=1)
 
     root, artist, album, fname = fullpath.rsplit("/", maxsplit=3)

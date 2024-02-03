@@ -147,8 +147,10 @@ def d_get(
 
 
 def clean_artist(artist: str) -> str:
-    """Cleanup formatting of a Discogs artist. Titlecase is always applied.
-    Titlecase exceptions are not to be handled here.
+    """Cleanup formatting of a Discogs artist.
+
+    Titlecase is always applied. Titlecase exceptions are not to be handled
+    here.
     """
 
     for patt, sub in {
@@ -163,9 +165,11 @@ def clean_artist(artist: str) -> str:
 
     # not sure whether to titlecase before or after merging "The"s
     artist = titlecase(artist)
+    # artist = artist.title()
     # artist = tcase_with_exc(artist)
 
     words = artist.split(", ")
+    print(words)
     while "The" in words:
         i = words.index("The")
         if "the" not in words[i - 1]:  # may not be desirable

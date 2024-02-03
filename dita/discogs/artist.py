@@ -252,7 +252,7 @@ class Artist:  # {{{
             self.page += 1
             new_pg = pd.DataFrame(self.get_releases()["releases"]).fillna(0)
             self.releases = pd.concat([self.releases, new_pg], sort=False)
-            # self.position = self.position // self.per_page + self.per_page
+            self.position = self.position // self.per_page + self.per_page
 
     # def add_prev_page(self):
     #     if self.page > 1:

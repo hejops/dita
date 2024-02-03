@@ -83,9 +83,9 @@ class Collection:  # {{{
             ]
         )
 
-    def __dict__(self):
+    def to_dict(self):
         """Returns result of filtering as a dict"""
-        return self.filtered.to_dict()
+        return self.filtered.set_index("id").title.to_dict()
 
     def reset_filters(self):
         """Removes all user-defined filters, reverts df to its initial
@@ -446,14 +446,18 @@ def get_collection_releases(
                     "year": rel["basic_information"]["year"],
                     "r": rel["rating"],
                     "genre": ", ".join(sorted(rel["basic_information"]["styles"])),
-                    "label": label[0]["name"]
-                    if (label := rel["basic_information"].get("labels"))
-                    else "",
+                    "label": (
+                        label[0]["name"]
+                        if (label := rel["basic_information"].get("labels"))
+                        else ""
+                    ),
                     "id": rel["id"],
                     "date_added": rel["date_added"],  # 2022-10-23T15:16:36-07:00
-                    "img": img
-                    if (img := rel["basic_information"].get("cover_image"))
-                    else "",
+                    "img": (
+                        img
+                        if (img := rel["basic_information"].get("cover_image"))
+                        else ""
+                    ),
                 }
                 # wantlist has no instance_id
                 if not wantlist:
@@ -632,7 +636,7 @@ if __name__ == "__main__":
             PERC = 2  # float also allowed, e.g. 2.5
             top_df = group_collection_by_artist(
                 pd.read_csv(DISCOGS_CSV),
-                metric=lambda x: top_n_sum(x, 10 // PERC)
+                metric=lambda x: top_n_sum(x, 10 // PERC),
                 # groupby="label",
                 # metric=lambda x: np.mean(x) * 3,
                 # metric=len,

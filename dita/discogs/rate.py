@@ -15,7 +15,6 @@ import requests
 
 import dita.discogs.core as dc
 from dita.config import TARGET_DIR
-from dita.discogs.core import search_with_relpath
 from dita.tag.core import lprint
 from dita.tag.core import shuote
 
@@ -352,7 +351,7 @@ def import_rym_ratings(rym_csv: str) -> None:
 def rate_from_str(_str: str):
     _artist, album, rating = _str.split(",")
     rating = rating.strip("-+")
-    rel = search_with_relpath(f"{_artist}/{album}")
+    rel = dc.search_with_relpath(f"{_artist}/{album}")
     rate_release(rel, rating=rating, rerate=True)
 
 

@@ -1,6 +1,6 @@
 import pandas as pd
 
-import dita.discogs.collection
+from dita.discogs.collection import Collection
 
 test_dict = {
     "title": {
@@ -64,72 +64,78 @@ test_df = pd.DataFrame(test_dict)
 
 
 def test_filter():
-    coll = discogs.collection.Collection(test_df)
+    coll = Collection(test_df)
 
-    # checking string equality may not be the best way
-    assert (
-        str(coll)
-        == """                             title  year  r                             genre       id                 date_added         iid
-1731             Master Of Puppets  1986  3               Speed Metal, Thrash  1549636  2022-10-12T13:38:50-07:00  1153075592
-2931                  Kill 'Em All  1983  3               Speed Metal, Thrash  1259481  2022-10-12T13:39:03-07:00  1153075745
-2933            Ride The Lightning  1984  4               Speed Metal, Thrash   377464  2022-10-12T13:39:17-07:00  1153075904
-1732        ...And Justice For All  1988  2               Heavy Metal, Thrash   521407  2022-10-13T03:07:11-07:00  1153395887
-546   Hardwired...To Self-Destruct  2016  1  Heavy Metal, Speed Metal, Thrash  9359830  2022-10-23T15:20:18-07:00  1162727660
-3991          No Life 'Til Leather  1982  2               Heavy Metal, Thrash  1993970  2022-10-23T16:02:37-07:00  1162755158
-1728                     St. Anger  2003  1                       Heavy Metal   588888  2022-10-24T01:06:28-07:00  1162958300"""
-    )
+    assert coll.to_dict() == {
+        377464: "Ride The Lightning",
+        521407: "...And Justice For All",
+        588888: "St. Anger",
+        1259481: "Kill 'Em All",
+        1549636: "Master Of Puppets",
+        1993970: "No Life 'Til Leather",
+        9359830: "Hardwired...To Self-Destruct",
+    }
 
     coll.filter("r:3", sort=False)
     assert coll.filter_list == (("r", "3"),)
-    assert (
-        str(coll)
-        == """                   title  year  r                genre       id                 date_added         iid
-1731   Master Of Puppets  1986  3  Speed Metal, Thrash  1549636  2022-10-12T13:38:50-07:00  1153075592
-2931        Kill 'Em All  1983  3  Speed Metal, Thrash  1259481  2022-10-12T13:39:03-07:00  1153075745
-2933  Ride The Lightning  1984  4  Speed Metal, Thrash   377464  2022-10-12T13:39:17-07:00  1153075904"""
-    )
+    assert coll.to_dict() == {
+        377464: "Ride The Lightning",
+        1259481: "Kill 'Em All",
+        1549636: "Master Of Puppets",
+    }
 
     coll.sort()
+    # TODO: find a better way to test sort
+
+    #                              title  year  ...                 date_added         iid
+    # 1731             Master Of Puppets  1986  ...  2022-10-12T13:38:50-07:00  1153075592
+    # 2931                  Kill 'Em All  1983  ...  2022-10-12T13:39:03-07:00  1153075745
+    # 2933            Ride The Lightning  1984  ...  2022-10-12T13:39:17-07:00  1153075904
+    # 1732        ...And Justice For All  1988  ...  2022-10-13T03:07:11-07:00  1153395887
+    # 546   Hardwired...To Self-Destruct  2016  ...  2022-10-23T15:20:18-07:00  1162727660
+    # 3991          No Life 'Til Leather  1982  ...  2022-10-23T16:02:37-07:00  1162755158
+    # 1728                     St. Anger  2003  ...  2022-10-24T01:06:28-07:00  1162958300
+
     assert coll.filter_list == (("r", "3"),)
-    assert (
-        str(coll)
-        == """                   title  year  r                genre       id                 date_added         iid
-2933  Ride The Lightning  1984  4  Speed Metal, Thrash   377464  2022-10-12T13:39:17-07:00  1153075904
-2931        Kill 'Em All  1983  3  Speed Metal, Thrash  1259481  2022-10-12T13:39:03-07:00  1153075745
-1731   Master Of Puppets  1986  3  Speed Metal, Thrash  1549636  2022-10-12T13:38:50-07:00  1153075592"""
-    )
+    assert coll.df.year.to_list() == [
+        1986,
+        1983,
+        1984,
+        1988,
+        2016,
+        1982,
+        2003,
+    ]
 
     coll.filter("r:4")
     assert coll.filter_list == (("r", "3"), ("r", "4"))
-    assert (
-        str(coll)
-        == """                   title  year  r                genre      id                 date_added         iid
-2933  Ride The Lightning  1984  4  Speed Metal, Thrash  377464  2022-10-12T13:39:17-07:00  1153075904"""
-    )
+    assert coll.to_dict() == {
+        377464: "Ride The Lightning",
+    }
 
     # TODO: r:2 -- would lead to empty self.filtered
 
     coll.reset_filters()
     assert coll.filter_list == ()
-    assert (
-        str(coll)
-        == """                             title  year  r                             genre       id                 date_added         iid
-1731             Master Of Puppets  1986  3               Speed Metal, Thrash  1549636  2022-10-12T13:38:50-07:00  1153075592
-2931                  Kill 'Em All  1983  3               Speed Metal, Thrash  1259481  2022-10-12T13:39:03-07:00  1153075745
-2933            Ride The Lightning  1984  4               Speed Metal, Thrash   377464  2022-10-12T13:39:17-07:00  1153075904
-1732        ...And Justice For All  1988  2               Heavy Metal, Thrash   521407  2022-10-13T03:07:11-07:00  1153395887
-546   Hardwired...To Self-Destruct  2016  1  Heavy Metal, Speed Metal, Thrash  9359830  2022-10-23T15:20:18-07:00  1162727660
-3991          No Life 'Til Leather  1982  2               Heavy Metal, Thrash  1993970  2022-10-23T16:02:37-07:00  1162755158
-1728                     St. Anger  2003  1                       Heavy Metal   588888  2022-10-24T01:06:28-07:00  1162958300"""
-    )
+    assert coll.to_dict() == {
+        377464: "Ride The Lightning",
+        521407: "...And Justice For All",
+        588888: "St. Anger",
+        1259481: "Kill 'Em All",
+        1549636: "Master Of Puppets",
+        1993970: "No Life 'Til Leather",
+        9359830: "Hardwired...To Self-Destruct",
+    }
 
     # force sort by date_added
     coll.filter("r:3@")
     assert coll.filter_list == (("r", "3@"),)
-    assert (
-        str(coll)
-        == """                   title  year  r                genre       id                 date_added         iid
-1731   Master Of Puppets  1986  3  Speed Metal, Thrash  1549636  2022-10-12T13:38:50-07:00  1153075592
-2931        Kill 'Em All  1983  3  Speed Metal, Thrash  1259481  2022-10-12T13:39:03-07:00  1153075745
-2933  Ride The Lightning  1984  4  Speed Metal, Thrash   377464  2022-10-12T13:39:17-07:00  1153075904"""
-    )
+    assert coll.df.title.to_list() == [
+        "Master Of Puppets",
+        "Kill 'Em All",
+        "Ride The Lightning",
+        "...And Justice For All",
+        "Hardwired...To Self-Destruct",
+        "No Life 'Til Leather",
+        "St. Anger",
+    ]

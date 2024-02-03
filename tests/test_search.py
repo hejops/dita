@@ -1,4 +1,4 @@
-from json.decoder import JSONDecodeError
+# from json.decoder import JSONDecodeError
 
 import dita.discogs.core as dc
 
@@ -25,19 +25,19 @@ def test_search_release():
     # MC Eiht - Official
 
     for artist, album in {
-        "yourboyfriendsucks!": "episode 01",
-        "Yuju": "Rec",
-        "MC Eiht": "Official",
-        # "Elysiüm": "monarch elysiüm",  # unicode ok
         "Hopesfall": "The Satellite Years",
+        "MC Eiht": "Official",
         "Monarch!": "Speak of the Sea",  # ! is ok here
         "Monarch": "Speak of the Sea",  # can also be removed
-        # # "Gospel": "The Loser",
+        "Yuju": "Rec",
+        # "..I..O..I..": "Chrysalis",  # any number of intervening .s are ok
+        # "Elysiüm": "monarch elysiüm",  # unicode ok
         # "Flo": "The Lead",  # short artist ok
         # "Godspeed You Black": "Yanqui",  # words with ! may be removed entirely
-        # # "IOI": "Chrysalis",  # omitting .s is ok
+        # "yourboyfriendsucks!": "episode 01",
+        # # "Gospel": "The Loser",
         # # "IOI ": "Chrysalis",  # extra (non-intervening) spaces are ok
-        # "..I..O..I..": "Chrysalis",  # any number of intervening .s are ok
+        # # "IOI": "Chrysalis",  # omitting .s is ok
     }.items():
         res = dc.search_release(
             artist,

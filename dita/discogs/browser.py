@@ -24,7 +24,7 @@ import pandas as pd
 from dita.discogs.collection import d_get
 from dita.discogs.release import get_release_tracklist
 
-# from tagfuncs import CONFIG
+# from tag.core import CONFIG
 
 
 MAX_ROWS = 50
