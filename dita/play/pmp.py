@@ -24,13 +24,13 @@ import yt_dlp
 from pyfzf import FzfPrompt
 from requests.exceptions import ConnectionError
 
-import dita.discogs.core as dc
 from dita.config import CONFIG
 from dita.config import PATH
 from dita.config import QUEUE_FILE
 from dita.config import TARGET_DIR
 from dita.discogs.artist import Artist
 from dita.discogs.artist import get_artist_id
+from dita.discogs.core import search_with_relpath
 from dita.discogs.rate import rate_release
 from dita.tagfuncs import glob_full
 from dita.tagfuncs import open_url
@@ -183,7 +183,7 @@ class Queue:
     def open_discogs(self):
         """Open in Discogs release page for currently playing album in
         browser"""
-        url = dc.search_with_relpath(self.np_album).get("uri")
+        url = search_with_relpath(self.np_album).get("uri")
         if url:
             print(url)
             open_url(url)
@@ -274,7 +274,7 @@ class Queue:
         artist, _ = album.split("/")
 
         try:
-            release = dc.search_with_relpath(album)
+            release = search_with_relpath(album)
         except ConnectionError:
             release = {}
 
