@@ -416,9 +416,13 @@ def convert_file(file: str):
     # print("Converted", file)
 
 
-if __name__ == "__main__":
+def main():
     con = Converter(SOURCE_DIR if len(sys.argv) == 1 else os.path.realpath(sys.argv[1]))
 
     con.split_cue()
     con.flatten_dirs()
     con.convert_all()
+
+
+if __name__ == "__main__":
+    main()
