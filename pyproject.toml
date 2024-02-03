@@ -5,6 +5,8 @@ description = "Command-line Discogs tagger"
 authors = ["hejops"]
 license = "GNU GPLv3"
 readme = "README.md"
+homepage = "https://github.com/hejops/dita"
+repository = "https://github.com/hejops/dita"
 
 [tool.poetry.dependencies]
 python = "^3.11"
