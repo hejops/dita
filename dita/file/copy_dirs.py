@@ -26,13 +26,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import TARGET_DIR
-from discogs.collection import get_percentiles
-from discogs.collection import group_collection_by_artist
-from discogs.collection import top_n_sum
-from discogs.core import DISCOGS_CSV
-from tagfuncs import eprint
-from tagfuncs import shallow_recurse
+from dita.config import TARGET_DIR
+from dita.discogs.collection import get_percentiles
+from dita.discogs.collection import group_collection_by_artist
+from dita.discogs.collection import top_n_sum
+from dita.discogs.core import DISCOGS_CSV
+from dita.tagfuncs import eprint
+from dita.tagfuncs import shallow_recurse
 
 # from discogs.core import clean_artist
 
@@ -76,7 +76,9 @@ def add_artists_with_translit(
     dirs: list[str],
     top_artists: list[str],
 ):
-    """Artist names selected from library have transliterations, while artist
+    """
+
+    Artist names selected from library have transliterations, while artist
     names obtained via the Discogs collection do not. This puts back the
     'missed' artists from the collection back into the selection."""
     # (dir starts with artist + ' (')
@@ -94,7 +96,7 @@ def add_artists_with_translit(
 
 
 def main() -> list[str]:
-    """Print paths (relative to library root) to be copied by rsync."""
+    """Print paths (relative to library root) to be copied by rsync"""
     df = pd.read_csv(DISCOGS_CSV)
 
     one_5 = df[df.artist.map(df["artist"].value_counts() == 1)][df.r == 5][["artist"]]

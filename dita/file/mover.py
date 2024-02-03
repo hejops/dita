@@ -9,21 +9,22 @@ import shutil
 import sys
 
 import pandas as pd
-from mutagen.easyid3 import EasyID3
 from pyfzf.pyfzf import FzfPrompt
 
-import tagfix
-from config import QUEUE_FILE
-from config import SOURCE_DIR
-from config import TARGET_DIR
-from tagfuncs import file_to_tags
-from tagfuncs import front_int
-from tagfuncs import get_audio_files
-from tagfuncs import get_files_tags
-from tagfuncs import is_ascii
-from tagfuncs import select_from_list
-from taggenre import GENRES
-from taggenre import save_db
+import dita.tagfix
+from dita.config import QUEUE_FILE
+from dita.config import SOURCE_DIR
+from dita.config import TARGET_DIR
+from dita.tagfuncs import file_to_tags
+from dita.tagfuncs import front_int
+from dita.tagfuncs import get_audio_files
+from dita.tagfuncs import get_files_tags
+from dita.tagfuncs import is_ascii
+from dita.tagfuncs import select_from_list
+from dita.taggenre import GENRES
+from dita.taggenre import save_db
+
+# from mutagen.easyid3 import EasyID3
 
 assert TARGET_DIR and SOURCE_DIR
 
@@ -69,8 +70,12 @@ class Mover:  # {{{
         if self.src_dir == SOURCE_DIR:
             # restrict to staged.txt
             self.files = [
-                f for f in self.files if os.path.dirname(f) in tagfix.STAGED_DIRS
+                f for f in self.files if os.path.dirname(f) in dita.tagfix.STAGED_DIRS
             ]
+
+        if not self.files:
+            print("Nothing to move")
+            return
 
         print(len(self.files), "files to move")
 
@@ -84,7 +89,7 @@ class Mover:  # {{{
         self.regen_tag_columns()
 
         self.targets.dropna(
-            subset=list(tagfix.REQUIRED_FIELDS),
+            subset=list(dita.tagfix.REQUIRED_FIELDS),
             how="any",
             inplace=True,
         )
@@ -409,11 +414,12 @@ class Mover:  # {{{
             os.rmdir(parent)
 
     def regen_tag_columns(self) -> None:
+        # print(self.targets.columns)
         right = self.targets.tags.apply(pd.Series)
         self.targets = self.targets[self.targets.columns.difference(right.columns)]
         self.targets = self.targets.merge(
             right, left_index=True, right_index=True
-        ).applymap(tagfix.tags_to_columns)
+        ).applymap(dita.tagfix.tags_to_columns)
 
     def dry_run(self):
         """Perform a dry-run of the move, then show the resulting relpaths.
@@ -440,7 +446,7 @@ class Mover:  # {{{
 
             print(self.targets[self.targets.src == files_to_fix[0]].iloc[0].tags)
 
-            tagfix.Tagger(src_dir_to_fix).repl()
+            dita.tagfix.Tagger(src_dir_to_fix).repl()
 
             # TODO: tags modified (in file and Tagger), file_to_tags is rerun
             # (in Mover), and then columns regen'd but -still- not reflected in
@@ -750,14 +756,17 @@ def multi_move(dirs: list[str]):
 
     field: str = select_from_list(["artist", "genre"], "Field")
     new_val = input("Value: ")
-    tagfix.edit_tag(tracks, field=field, new_val=new_val)
+    dita.tagfix.edit_tag(tracks, field=field, new_val=new_val)
 
     if field == "artist":
         for _dir in dirs:
             Mover(_dir).move()
 
 
-if __name__ == "__main__":
+def main(
+    # move: bool,
+    # path,
+):
     mvr = Mover(SOURCE_DIR)
     mvr.move()
     mvr.queue_new_albums()
@@ -765,9 +774,13 @@ if __name__ == "__main__":
     if "genre" in mvr.targets:
         save_db(mvr.targets[["artist", "genre"]].set_index("artist"))
 
-    if os.path.exists(tagfix.STAGED_FILE):
-        os.remove(tagfix.STAGED_FILE)
+    if os.path.exists(dita.tagfix.STAGED_FILE):
+        os.remove(dita.tagfix.STAGED_FILE)
 
     print("Done")
 
     sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

@@ -14,15 +14,16 @@ import numpy as np
 import pandas as pd
 from titlecase import titlecase
 
-import discogs.core as dc
-from tagfuncs import eprint
-from tagfuncs import extract_year
-from tagfuncs import fill_tracknum
-from tagfuncs import is_ascii
-from tagfuncs import lprint
-from tagfuncs import tcase_with_exc
-
-# import discogs.artist as da
+import dita.discogs.artist as da
+import dita.discogs.core as dc
+from dita.tagfuncs import eprint
+from dita.tagfuncs import extract_year
+from dita.tagfuncs import fill_tracknum
+from dita.tagfuncs import is_ascii
+from dita.tagfuncs import lprint
+from dita.tagfuncs import open_url
+from dita.tagfuncs import select_from_list
+from dita.tagfuncs import tcase_with_exc
 
 
 # def get_tracklist_total_duration(
@@ -147,6 +148,51 @@ def is_classical(release) -> bool:
     )
 
 
+def apply_transliterations(
+    transliterations: dict[str, list[str]],
+    discogs_tags: pd.DataFrame,
+) -> pd.DataFrame:
+    """Append transliteration to artist column if unambiguous (or if tty input
+    possible), else return df unchanged."""
+
+    if (
+        # 1 transliteration per artist
+        all(len(x) == 1 for x in transliterations.values())
+        # all artists have 1 translit
+        and len(transliterations) == len(set(discogs_tags.artist))
+    ):
+        discogs_tags.artist = discogs_tags.artist.apply(
+            lambda x: f"{x} ({transliterations[x.lower()][0]})"
+        )
+        assert all(is_ascii(x) for x in discogs_tags.artist)
+        # return discogs_tags
+
+    elif sys.__stdin__.isatty():
+        # print(transliterations)
+        # foo = transliterations.copy()
+        for native, trans_l in transliterations.items():
+            if len(trans_l) == 1:
+                trans = trans_l[0]
+            elif not trans_l:
+                # if artist["profile"]:
+                #     eprint(artist["profile"])
+                print("No transliterations found:")
+                open_url("https://duckduckgo.com/?t=ffab&q=", native)
+                trans = input(f"Provide transliteration for {native}: ")
+            else:
+                trans: str = select_from_list(trans_l, "Select transliteration")
+
+            n_trans = f"{native} ({trans})"
+            discogs_tags.artist = discogs_tags.artist.apply(
+                lambda n: n.lower().replace(native, n_trans)
+            )
+
+    # else:
+    #     raise NotImplementedError
+
+    return discogs_tags
+
+
 def get_discogs_tags(release: dict) -> pd.DataFrame:  # {{{
     """Transforms the contents of a Discogs release into a dataframe with the
     following columns:
@@ -207,16 +253,23 @@ def get_discogs_tags(release: dict) -> pd.DataFrame:  # {{{
             composers=set(artists),
         )
 
-        # remove non-ascii composers
-        if any(not is_ascii(a) for a in artists):
-            # list(filter(a, performers) for a in artists)
-            print(
-                artists,
-                type(artists),
-                release["genres"],
-                release["styles"],
-            )
-            raise NotImplementedError
+        # add transliterations to non-ascii composers
+        # see tagfix:trans_ok
+        artists_not_ascii = [a for a in artists if not is_ascii(a)]
+        if artists_not_ascii:
+            transliterations = da.get_transliterations(release)
+            discogs_tags = apply_transliterations(transliterations, discogs_tags)
+            # if all(tagfuncs.is_ascii(x) for x in discogs_tags.artist):
+            #     return True
+
+            # # list(filter(a, performers) for a in artists)
+            # print(
+            #     artists,
+            #     type(artists),
+            #     release.get("genres"),
+            #     release.get("styles"),
+            # )
+            # raise NotImplementedError
 
         # remove all composers
         performers = [p for p in performers if p not in artists]

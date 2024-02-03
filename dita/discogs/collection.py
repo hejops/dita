@@ -20,17 +20,17 @@ from pyfzf.pyfzf import FzfPrompt
 from tqdm import tqdm
 from unidecode import unidecode
 
-from discogs.artist import Artist
-from discogs.artist import get_artist_id
-from discogs.core import clean_artist
-from discogs.core import d_get
-from discogs.core import DISCOGS_CSV
-from discogs.core import USERNAME
-from tagfuncs import cprint
-from tagfuncs import eprint
-from tagfuncs import lprint
-from tagfuncs import open_url
-from tagfuncs import select_from_list
+from dita.discogs.artist import Artist
+from dita.discogs.artist import get_artist_id
+from dita.discogs.core import clean_artist
+from dita.discogs.core import d_get
+from dita.discogs.core import DISCOGS_CSV
+from dita.discogs.core import USERNAME
+from dita.tagfuncs import cprint
+from dita.tagfuncs import eprint
+from dita.tagfuncs import lprint
+from dita.tagfuncs import open_url
+from dita.tagfuncs import select_from_list
 
 
 VAL_DELIM = ":"  # prop:val
@@ -645,13 +645,13 @@ if __name__ == "__main__":
             top_df = top_df[top_df.perc <= PERC]
             print(top_df, len(top_df))
 
-            from etc.rym_artists import print_rym_artists
+            # from etc.rym_artists import print_rym_artists
 
             # print_rym_artists(top_df)
 
-            print_rym_artists(top_df[top_df.r > 22])
-            print()
-            print_rym_artists(top_df[top_df.r <= 22])
+            # print_rym_artists(top_df[top_df.r > 22])
+            # print()
+            # print_rym_artists(top_df[top_df.r <= 22])
 
         elif sys.argv[1] == "--random":
             coll = Collection(pd.read_csv(DISCOGS_CSV))

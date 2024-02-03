@@ -10,6 +10,14 @@ import discogs.core as dc
 # # https://www.discogs.com/release/827219
 
 
+# def test_non_ascii_composer():
+#     # https://www.discogs.com/release/6367642
+#     from discogs.release import get_discogs_tags
+#
+#     # can't test, need user input
+#     get_discogs_tags(dc.d_get(6367642))
+
+
 def test_search_release():
     # https://www.discogs.com/artist/4337911-TVXQ!
     # https://www.discogs.com/artist/4983176-IOI

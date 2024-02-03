@@ -13,11 +13,12 @@ import time
 import pandas as pd
 import requests
 
-import discogs.artist
-import discogs.core as dc
-from config import TARGET_DIR
-from tagfuncs import lprint
-from tagfuncs import shuote
+import dita.discogs.core as dc
+from dita.config import TARGET_DIR
+from dita.discogs import artist
+from dita.discogs.core import search_with_relpath
+from dita.tagfuncs import lprint
+from dita.tagfuncs import shuote
 
 # from artist import Artist
 # from tagfuncs import PATH
@@ -355,11 +356,9 @@ def import_rym_ratings(rym_csv: str) -> None:
 
 
 def rate_from_str(_str: str):
-    from discogs.core import search_with_relpath
-
-    artist, album, rating = _str.split(",")
+    _artist, album, rating = _str.split(",")
     rating = rating.strip("-+")
-    rel = search_with_relpath(f"{artist}/{album}")
+    rel = search_with_relpath(f"{_artist}/{album}")
     rate_release(rel, rating=rating, rerate=True)
 
 
@@ -375,26 +374,26 @@ if __name__ == "__main__":
     if "/release/" in sys.argv[1]:
         rate_release(dc.d_get(dc.get_id_from_url(sys.argv[1])))
     elif "/artist/" in sys.argv[1]:
-        discogs.artist.Artist(dc.get_id_from_url(sys.argv[1])).rate_all()
+        artist.Artist(dc.get_id_from_url(sys.argv[1])).rate_all()
     elif "/label/" in sys.argv[1]:
-        discogs.artist.Label(dc.get_id_from_url(sys.argv[1])).rate_all()
+        artist.Label(dc.get_id_from_url(sys.argv[1])).rate_all()
     elif "," in sys.argv[1]:
         rate_from_str(sys.argv[1])
     elif os.path.isfile(sys.argv[1]):
         with open(sys.argv[1], "r") as f:
             for l in f.readlines():
                 if "," not in l:
-                    continue
+                    break
                 rate_from_str(l.strip())
 
     else:
         if sys.argv[1].isnumeric():
             A_ID = int(sys.argv[1])
         else:  # artist name
-            A_ID = discogs.artist.get_artist_id(
+            A_ID = artist.get_artist_id(
                 " ".join(sys.argv[1:]),
                 check_coll=False,
             )
 
         # rate_releases_of_artist(filter_by_role(discogs.artist.Artist(aid).releases))
-        discogs.artist.Artist(A_ID).rate_all()
+        artist.Artist(A_ID).rate_all()

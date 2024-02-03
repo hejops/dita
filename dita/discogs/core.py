@@ -19,12 +19,12 @@ import pandas as pd
 import requests
 from titlecase import titlecase
 
-import discogs.release
-from config import CONFIG
-from config import PATH
-from tagfuncs import eprint
-from tagfuncs import input_with_prefill
-from tagfuncs import tabulate_dict
+from dita.config import CONFIG
+from dita.config import PATH
+from dita.discogs import release
+from dita.tagfuncs import eprint
+from dita.tagfuncs import input_with_prefill
+from dita.tagfuncs import tabulate_dict
 
 # from tagfuncs import lprint
 # from tagfuncs import tcase_with_exc
@@ -559,9 +559,9 @@ def release_as_str(rel: dict) -> str:
     pd.set_option("display.max_columns", None)
     pd.set_option("display.max_rows", None)
 
-    _str = [tabulate_dict(discogs.release.get_release_tracklist(rel))]
+    _str = [tabulate_dict(release.get_release_tracklist(rel))]
 
-    tags = discogs.release.get_discogs_tags(rel)
+    tags = release.get_discogs_tags(rel)
     if not tags.empty:
         _str = _str + [tags.artist.iloc[0], tags.album.iloc[0]]
 
@@ -592,7 +592,7 @@ def display_release_results(
         print(rel["title"])
         print(release_as_str(rel))
 
-        tracklist = discogs.release.get_release_tracklist(rel)
+        tracklist = release.get_release_tracklist(rel)
 
         # lprint(rel)
         print(" / ".join(a["name"] for a in rel["artists"]))
@@ -803,7 +803,7 @@ def search_release(
         for res in results:
             # print(list(res))
             if m_url := res.get("master_url"):
-                return [d_get(discogs.release.get_primary_url(d_get(m_url)))]
+                return [d_get(release.get_primary_url(d_get(m_url)))]
 
     # TODO: -- advantages it would provide: easier col indexing, sort by year
     # ascending

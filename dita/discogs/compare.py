@@ -14,11 +14,11 @@ import pandas as pd
 import streamlit as st
 import yt_dlp
 
-import discogs.core as dc
-import discogs.release
-from config import PATH
-from config import TARGET_DIR
-from discogs.collection import Collection
+import dita.discogs.core as dc
+from dita.config import PATH
+from dita.config import TARGET_DIR
+from dita.discogs import release
+from dita.discogs.collection import Collection
 
 # import requests
 
@@ -29,7 +29,9 @@ MEAN_COL = "_mean"
 YTPL_REGEX = r"OLAK5uy[^\\]+"
 
 YT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0"
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0"
+    )
 }
 
 
@@ -137,7 +139,7 @@ def new_work():
         )
         if not _id:
             return
-        movts = discogs.release.get_release_tracklist(dc.d_get(_id)).title.to_list()
+        movts = release.get_release_tracklist(dc.d_get(_id)).title.to_list()
 
     st.write(
         new_df := pd.DataFrame(

@@ -26,13 +26,14 @@ import pandas as pd
 import psutil
 from mutagen import File
 from mutagen.easyid3 import EasyID3
-from mutagen.easyid3 import ID3
 from mutagen.id3 import ID3NoHeaderError
 from tabulate import tabulate
 from termcolor import colored
 from titlecase import titlecase
 
-from config import load_titlecase_exceptions
+from dita.config import load_titlecase_exceptions
+
+# from mutagen.easyid3 import ID3
 
 TITLECASE_EXCEPTIONS = load_titlecase_exceptions()
 
@@ -70,7 +71,7 @@ def align_lists(left: list, right: list):
     l_idxs = [left.index(m) for m in matches]
     r_idxs = [right.index(m) for m in matches]
     while l_idxs != r_idxs:
-        print(l_idxs, r_idxs)
+        # print(l_idxs, r_idxs)
         for i, (l_idx, r_idx) in enumerate(zip(l_idxs, r_idxs)):
             if l_idx > r_idx:
                 # TODO: insert none n times (not just once) -- https://stackoverflow.com/a/39541404
@@ -532,7 +533,12 @@ def get_files_tags(
     #     )
     #     raise Exception
 
-    if len({t.get("album")[0] for t in tags_list if t.get("album")}) > 1 or ...:
+    if (
+        len({t.get("album")[0] for t in tags_list if t.get("album")})
+        > 1
+        #
+        # or ...
+    ):
         # multi-disc album with multiple album titles ['...CD1', ...] and
         # -without- discnumber will be listed as [1-01, 2-01, 3-01, 1-02, ...]
         # and must be sorted by filename
@@ -841,7 +847,7 @@ def tabulate_dict(
     # pd.set_option("text-align", "left")
     # print(df)
 
-    truncated = False
+    # truncated = False
 
     if isinstance(dict_or_df, pd.DataFrame):
         if columns:
@@ -857,39 +863,14 @@ def tabulate_dict(
     if df.empty:
         return ""
 
-    df_len = len(df)
+    # df_len = len(df)
     if truncate and len(df) > max_rows:
         df = df[:max_rows]
-        truncated = True
+        # truncated = True
 
     # df.r = df.r.apply(lambda x: cprint(x, _print=False))
 
     return df.to_string()
-
-    table = tabulate(
-        df,
-        # df[["title"]],
-        headers=df.columns,
-        tablefmt="pipe",
-        showindex=showindex,  # typically hide, but show for Artist, for example
-        # maxcolwidths=[None, 60],
-        maxcolwidths=60,
-    )
-
-    # raise ValueError
-
-    # print(table)
-    # raise Exception
-
-    # if show:
-    #     print(table)
-
-    if truncated:
-        eprint(f"(DataFrame too long; only first {max_rows} items (of {df_len}) shown)")
-    # else:
-    #     eprint(l, "items")
-
-    return table
 
 
 # }}}

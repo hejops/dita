@@ -12,17 +12,16 @@ from typing import Any
 import pandas as pd
 import readchar
 
-import discogs.core as dc
-import discogs.rate
-import discogs.release
-from tagfuncs import eprint
-from tagfuncs import is_ascii
-from tagfuncs import open_url
-from tagfuncs import select_from_list
-from tagfuncs import tcase_with_exc
+import dita.discogs.core as dc
+from dita.discogs import rate
+from dita.tagfuncs import eprint
+from dita.tagfuncs import is_ascii
+from dita.tagfuncs import select_from_list
 
-# from unidecode import unidecode
+# from dita.tagfuncs import open_url
+# from dita.tagfuncs import tcase_with_exc
 # from tagfuncs import tabulate_dict
+# import dita.discogs.release
 
 
 class Artist:  # {{{
@@ -154,7 +153,7 @@ class Artist:  # {{{
 
         if "rateable" not in self.releases:
             self.releases["rateable"] = self.releases.apply(
-                lambda x: discogs.rate.is_rateable(x, exclude=exclude),
+                lambda x: rate.is_rateable(x, exclude=exclude),
                 axis=1,
             )
             self.releases = self.releases[self.releases.rateable.eq(True)]
@@ -385,10 +384,10 @@ class Artist:  # {{{
                 continue
 
             # must be done inside loop, because now full release data is parsed
-            if not discogs.rate.is_rateable(pd.Series(rel), exclude=1):
+            if not rate.is_rateable(pd.Series(rel), exclude=1):
                 continue
 
-            if discogs.rate.rate_release(rel) < 0:
+            if rate.rate_release(rel) < 0:
                 break
 
 

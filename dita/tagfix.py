@@ -20,21 +20,33 @@ from natsort import natsort_keygen  # , natsorted
 from numpy import nan
 from titlecase import titlecase
 
-import discogs.artist
-import discogs.release
-import tagfuncs
-from config import load_staged_dirs
-from config import SOURCE_DIR
-from config import STAGED_FILE
-from config import TARGET_DIR
-from discogs.core import cli_search
-from discogs.core import d_get
-from discogs.core import display_release_results
-from discogs.core import search_release
-from file import mover
-from tagfuncs import open_url
-from tagfuncs import save_tags
-from tagfuncs import select_from_list
+from dita.config import CONFIG
+from dita.config import load_staged_dirs
+from dita.config import PATH
+from dita.config import SOURCE_DIR
+from dita.config import STAGED_FILE
+from dita.config import TARGET_DIR
+from dita.discogs import artist
+from dita.discogs import release
+from dita.discogs.core import cli_search
+from dita.discogs.core import d_get
+from dita.discogs.core import display_release_results
+from dita.discogs.core import search_release
+from dita.file import mover
+from dita.tagfuncs import align_lists
+from dita.tagfuncs import eprint
+from dita.tagfuncs import FIELD_ALIASES
+from dita.tagfuncs import file_to_tags
+from dita.tagfuncs import glob_full
+from dita.tagfuncs import input_with_prefill
+from dita.tagfuncs import is_ascii
+from dita.tagfuncs import is_audio_file
+from dita.tagfuncs import open_url
+from dita.tagfuncs import save_tags
+from dita.tagfuncs import select_from_list
+from dita.tagfuncs import set_tag
+from dita.tagfuncs import shallow_recurse
+from dita.tagfuncs import tcase_with_exc
 
 STAGED_DIRS = load_staged_dirs()
 
@@ -86,14 +98,14 @@ class Tagger:
 
         # nests should already be flattened by convert
         # don't filter by filetype yet!
-        all_files = tagfuncs.glob_full(
+        all_files = glob_full(
             self.album_dir,
             dirs_only=False,
         )
 
         self.df = pd.DataFrame(
             [
-                {"file": f, "tags": tagfuncs.file_to_tags(f)}
+                {"file": f, "tags": file_to_tags(f)}
                 for f in all_files
                 if os.path.isfile(f)
             ],
@@ -102,10 +114,7 @@ class Tagger:
         # better than lambda i guess
         # note: index.map() doesn't have args keyword!
 
-        if (
-            self.df.empty
-            or not self.df.file.apply(tagfuncs.is_audio_file, args=["mp3"]).any()
-        ):
+        if self.df.empty or not self.df.file.apply(is_audio_file, args=["mp3"]).any():
             # raise ValueError
             return
 
@@ -131,7 +140,7 @@ class Tagger:
             self.__init__(self.album_dir)
 
         # partially converted
-        if any(self.df.index.map(lambda x: tagfuncs.is_audio_file(x, ["flac", "m4a"]))):
+        if any(self.df.index.map(lambda x: is_audio_file(x, ["flac", "m4a"]))):
             print("convert in progress", album_dir)
             return
 
@@ -237,7 +246,7 @@ class Tagger:
 
         """
 
-        def set_reason(reason: str):
+        def set_reason(reason: str):  # TODO: use Enum
             # print(
             #     len(self.results),
             #     self.results.iloc[idx],
@@ -302,7 +311,7 @@ class Tagger:
 
             # while we only really need the tracklist for len and dur checks,
             # the tags are used for diagnostics, e.g. align_lists
-            discogs_tags = discogs.release.get_discogs_tags(rel)
+            discogs_tags = release.get_discogs_tags(rel)
 
             if discogs_tags.empty:
                 continue
@@ -312,7 +321,7 @@ class Tagger:
                 return False
 
             if len(self.df) != len(discogs_tags):
-                aligned = tagfuncs.align_lists(
+                aligned = align_lists(
                     discogs_tags.title.to_list(),
                     self.df.title.to_list(),
                 )
@@ -362,61 +371,69 @@ class Tagger:
     def trans_ok(
         self,
         discogs_tags,
-        rel,
+        rel: dict,
     ) -> bool:
-        """Modifies columns, but not tags"""
-        artist_dicts = rel["artists"]
-        try:
-            # corner case: non-ascii in artist track credits only
-            # https://www.discogs.com/release/892711
-            artist_dicts += [t["artists"][0] for t in rel["tracklist"]]
-        except KeyError:
-            pass
-        # tagfuncs.lprint(artist_dicts)
-        # raise ValueError
-        # lowercase keys
-        transliterations = discogs.artist.get_transliterations(artist_dicts)
-        # print(transliterations)
+        """Check for 'artist' values that are not ASCII.
+
+        Modifies columns, but not tags"""
 
         # https://www.discogs.com/release/12168132
 
-        if all(tagfuncs.is_ascii(x) for x in discogs_tags.artist):
-            pass
+        if all(is_ascii(x) for x in discogs_tags.artist):
+            return True
 
-        elif all(len(x) == 1 for x in transliterations.values()) and len(
-            transliterations
-        ) == len(set(discogs_tags.artist)):
-            # print(123)
-            # get(x, x) -- if name not in dict, default to name
-            discogs_tags.artist = discogs_tags.artist.apply(
-                lambda x: f"{x} ({transliterations[x.lower()][0]})"
-            )
+        transliterations = artist.get_transliterations(rel)
+        discogs_tags = release.apply_transliterations(transliterations, discogs_tags)
 
-        elif TTY:
-            # print(transliterations)
-            # foo = transliterations.copy()
-            for native, trans_l in transliterations.items():
-                if len(trans_l) == 1:
-                    trans = trans_l[0]
-                elif not trans_l:
-                    # if artist["profile"]:
-                    #     eprint(artist["profile"])
-                    print("No transliterations found:")
-                    open_url("https://duckduckgo.com/?t=ffab&q=", native)
-                    trans = input(f"Provide transliteration for {native}: ")
-                else:
-                    trans: str = select_from_list(trans_l, "Select transliteration")
-
-                n_trans = f"{native} ({trans})"
-                discogs_tags.artist = discogs_tags.artist.apply(
-                    lambda n: n.lower().replace(native, n_trans)
-                )
-
-        else:
+        if not all(is_ascii(x) for x in discogs_tags.artist):
             print("no trans")
             return False
 
-        discogs_tags.artist = discogs_tags.artist.apply(tagfuncs.tcase_with_exc)
+        # elif (
+        #     # 1 transliteration per artist
+        #     all(len(x) == 1 for x in transliterations.values())
+        #     # all artists have
+        #     and len(transliterations) == len(set(discogs_tags.artist))
+        # ):
+        #     # print(123)
+        #     # get(x, x) -- if name not in dict, default to name
+        #     discogs_tags.artist = discogs_tags.artist.apply(
+        #         lambda x: f"{x} ({transliterations[x.lower()][0]})"
+        #     )
+
+        # elif (
+        #     # 1 transliteration per artist
+        #     all(len(x) == 1 for x in transliterations.values())
+        #     # all artists have 1 translit
+        #     and len(transliterations) == len(set(discogs_tags.artist))
+        # ):
+        #     discogs_tags = discogs.release.apply_transliterations(
+        #         transliterations, discogs_tags
+        #     )
+        #     if all(tagfuncs.is_ascii(x) for x in discogs_tags.artist):
+        #         return True
+        #
+        # elif TTY:
+        #     # print(transliterations)
+        #     # foo = transliterations.copy()
+        #     for native, trans_l in transliterations.items():
+        #         if len(trans_l) == 1:
+        #             trans = trans_l[0]
+        #         elif not trans_l:
+        #             # if artist["profile"]:
+        #             #     eprint(artist["profile"])
+        #             print("No transliterations found:")
+        #             open_url("https://duckduckgo.com/?t=ffab&q=", native)
+        #             trans = input(f"Provide transliteration for {native}: ")
+        #         else:
+        #             trans: str = select_from_list(trans_l, "Select transliteration")
+        #
+        #         n_trans = f"{native} ({trans})"
+        #         discogs_tags.artist = discogs_tags.artist.apply(
+        #             lambda n: n.lower().replace(native, n_trans)
+        #         )
+
+        discogs_tags.artist = discogs_tags.artist.apply(tcase_with_exc)
 
         return True
 
@@ -512,8 +529,8 @@ class Tagger:
         if _id.startswith("[r"):
             _id = _id[2:-1]
         rel = d_get(_id)
-        discogs_tags = discogs.release.get_discogs_tags(release=rel)
-        # tagfuncs.lprint(discogs_tags)
+        discogs_tags = release.get_discogs_tags(release=rel)
+        # lprint(discogs_tags)
         self.apply_discogs_tags(discogs_tags, rel)
 
     # }}}
@@ -533,7 +550,7 @@ class Tagger:
         )
 
         if rel:
-            self.apply_discogs_tags(discogs.release.get_discogs_tags(rel), rel)
+            self.apply_discogs_tags(release.get_discogs_tags(rel), rel)
         else:
             print("nothing selected")
             # continue
@@ -564,14 +581,16 @@ class Tagger:
         if len(self.df) != len(discogs_tags):
             # TODO: redirect master id to release id, more difficult than it seems
             print(
-                "Tracklist lengths do not match: "
-                f"{len(self.df)} vs {len(discogs_tags)}",
+                (
+                    "Tracklist lengths do not match: "
+                    f"{len(self.df)} vs {len(discogs_tags)}"
+                ),
                 discogs_tags,
             )
             # allow writing artist/album fields, but not track titles
             for tags in self.df.tags:
-                tagfuncs.set_tag(tags, "artist", discogs_tags.artist.iloc[0])
-                tagfuncs.set_tag(tags, "album", discogs_tags.album.iloc[0])
+                set_tag(tags, "artist", discogs_tags.artist.iloc[0])
+                set_tag(tags, "album", discogs_tags.album.iloc[0])
             return
 
         # # أسامة الرحباني Featuring هبة طوجي -> ... (abc) Featuring ... (def)
@@ -597,9 +616,9 @@ class Tagger:
                 #     print(df_row[field])
                 if field not in tags:
                     continue
-                tagfuncs.set_tag(tags, field, df_row[field])
+                set_tag(tags, field, df_row[field])
 
-            tagfuncs.set_tag(tags, "compilation", comp)
+            set_tag(tags, "compilation", comp)
             # print(tags["artist"])
 
         print()
@@ -618,7 +637,7 @@ class Tagger:
             print("nothing to do")
             return
         # print(self.results.columns)
-        _id: pd.Series = tagfuncs.select_from_list(
+        _id: pd.Series = select_from_list(
             # self.results[["id", "year", "format"]],
             self.results[["id", "format", "reason"]],
             "Release id",
@@ -631,7 +650,7 @@ class Tagger:
             rel = d_get(int(_id.id.iloc[0]), verbose=True)
         else:
             rel = d_get(int(_id.id), verbose=True)
-        discogs_tags = discogs.release.get_discogs_tags(release=rel)
+        discogs_tags = release.get_discogs_tags(release=rel)
         self.apply_discogs_tags(discogs_tags, rel)
 
     # }}}
@@ -680,10 +699,10 @@ class Tagger:
 
         bitrate = MP3(self.files[0]).info.bitrate // 1000  # pylint: disable=no-member
         if bitrate % 32 == 0:
-            tagfuncs.eprint(f"CBR: {bitrate} kbps")
+            eprint(f"CBR: {bitrate} kbps")
 
         if 0 in (zero_dur := [MP3(x).info.length for x in self.files]):
-            tagfuncs.eprint(f"Warning: {zero_dur.count(0)} tracks have zero duration")
+            eprint(f"Warning: {zero_dur.count(0)} tracks have zero duration")
 
         self.display_tracks()
 
@@ -726,8 +745,8 @@ class Tagger:
                         tag["title"] = titlecase(tag["title"][0])
                         tag["album"] = titlecase(tag["album"][0])
 
-                        tag["artist"] = tagfuncs.tcase_with_exc(tag["artist"][0])
-                        tagfuncs.save_tags(tag)
+                        tag["artist"] = tcase_with_exc(tag["artist"][0])
+                        save_tags(tag)
                     self.summarize()
 
                 case "e":
@@ -743,9 +762,9 @@ class Tagger:
                         self.meta["album"],
                     )
                     for tag in self.df.tags:
-                        tagfuncs.set_tag(tag, "album", self.meta["album"])
-                        tagfuncs.set_tag(tag, "artist", self.meta["artist"])
-                        tagfuncs.save_tags(tag)
+                        set_tag(tag, "album", self.meta["album"])
+                        set_tag(tag, "artist", self.meta["artist"])
+                        save_tags(tag)
 
                 case "p":
                     self.display_tracks()
@@ -814,18 +833,18 @@ def durations_match(
     # TODO: try levenshtein dist
 
     if not all(file_durations):
-        tagfuncs.eprint("Warning: Some file durations blank\n")
+        eprint("Warning: Some file durations blank\n")
         return False
 
     if not any(discogs_tags.dur):
-        tagfuncs.eprint("No durations listed\n")
+        eprint("No durations listed\n")
         return False
 
     if not all(discogs_tags.dur):
-        tagfuncs.eprint("Incomplete durations listed\n")
+        eprint("Incomplete durations listed\n")
         return False
 
-    # tagfuncs.lprint(discogs_durations)
+    # lprint(discogs_durations)
     discogs_tags["dur_diff"] = discogs_tags.dur - file_durations
 
     if (
@@ -877,10 +896,10 @@ def edit_tag(
         return None
 
     if not field:
-        field = input(f"Tag to edit ({'/'.join(tagfuncs.FIELD_ALIASES.values())}): ")
+        field = input(f"Tag to edit ({'/'.join(FIELD_ALIASES.values())}): ")
 
-        if field in tagfuncs.FIELD_ALIASES:
-            field = tagfuncs.FIELD_ALIASES[field]
+        if field in FIELD_ALIASES:
+            field = FIELD_ALIASES[field]
             curr_val = tags_list[0][field][0]
         else:
             curr_val = ""
@@ -890,13 +909,13 @@ def edit_tag(
             readline.parse_and_bind("tab: complete")
             readline.set_completer(completer)
 
-        new_val = tagfuncs.input_with_prefill(
+        new_val = input_with_prefill(
             f"Edit {field}: ",
             curr_val,
         )
 
     for tags in tags_list:
-        tagfuncs.set_tag(tags, field, new_val)
+        set_tag(tags, field, new_val)
 
 
 # }}}
@@ -913,7 +932,7 @@ def get_clipboard() -> str:
         stdout=sp.PIPE,
     ) as clip:
         if not clip.stdout:
-            tagfuncs.eprint("could not access clipboard")
+            eprint("could not access clipboard")
             return ""
 
         clip_str = clip.stdout.read().decode("utf-8")
@@ -922,9 +941,9 @@ def get_clipboard() -> str:
             return clip_str[2:-1]
 
         if clip_str.startswith("[m"):
-            return discogs.release.get_primary_url(
-                d_get(f"/masters/{clip_str[2:-1]}")
-            ).split("/")[-1]
+            return release.get_primary_url(d_get(f"/masters/{clip_str[2:-1]}")).split(
+                "/"
+            )[-1]
 
         return ""
 
@@ -943,7 +962,7 @@ def split_composer_and_performers(
     if any(d in art for d in delims):
         for delim in delims:
             if delim in art and TTY:
-                composer = tagfuncs.select_from_list(art.split(delim), "Composer")
+                composer = select_from_list(art.split(delim), "Composer")
                 break
 
     elif TTY:
@@ -954,8 +973,8 @@ def split_composer_and_performers(
             perfs = []
 
         perfs = set(perfs) | set(art.split(", "))
-        perfs = {tagfuncs.tcase_with_exc(x) for x in perfs}
-        composer: str = tagfuncs.select_from_list(list(perfs), "Composer")
+        perfs = {tcase_with_exc(x) for x in perfs}
+        composer: str = select_from_list(list(perfs), "Composer")
         perfs.remove(composer)
 
         if perfs:
@@ -983,13 +1002,11 @@ def dump_library_dirs() -> None:
     shallow_recurse() for dump_library_genres().
     """
 
-    from config import CONFIG, PATH
-
     assert CONFIG["play"]["database"]
     db_path = PATH + "/" + CONFIG["play"]["database"]
     print("dumping to", db_path)
 
-    dirs = tagfuncs.shallow_recurse(TARGET_DIR)
+    dirs = shallow_recurse(TARGET_DIR)
     dirs = sorted(d.removeprefix(f"{TARGET_DIR}/") + "\n" for d in dirs)
     print("Found", len(dirs), "dirs")
 
@@ -1002,7 +1019,7 @@ def order_files_by_duration(
     files: list[str],
 ) -> list[str]:
     """Attempt to sort files to match durations from Discogs"""
-    ref_df = discogs.release.get_release_tracklist(rel)
+    ref_df = release.get_release_tracklist(rel)
 
     assert all(ref_df.dur)
 
@@ -1082,7 +1099,7 @@ if __name__ == "__main__":
         TTY = False
 
     if len(sys.argv) == 1:
-        dirs = tagfuncs.glob_full(SOURCE_DIR)
+        dirs = glob_full(SOURCE_DIR)
         dirs = [d for d in dirs if d not in STAGED_DIRS]
         if not dirs:
             print(f"All {len(STAGED_DIRS)} dirs already staged")
@@ -1099,7 +1116,7 @@ if __name__ == "__main__":
             dump_library_dirs()
 
         elif len(sys.argv) == 2 and os.path.isdir(art := f"{TARGET_DIR}/{sys.argv[1]}"):
-            mover.multi_move(tagfuncs.glob_full(art, dirs_only=True))
+            mover.multi_move(glob_full(art, dirs_only=True))
 
         # last resort: multiple dirs already in library
         elif len(sys.argv) > 2:

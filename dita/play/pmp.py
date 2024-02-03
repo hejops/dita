@@ -24,16 +24,16 @@ import yt_dlp
 from pyfzf import FzfPrompt
 from requests.exceptions import ConnectionError
 
-import discogs.core as dc
-from config import CONFIG
-from config import PATH
-from config import QUEUE_FILE
-from config import TARGET_DIR
-from discogs.artist import Artist
-from discogs.artist import get_artist_id
-from discogs.rate import rate_release
-from tagfuncs import glob_full
-from tagfuncs import open_url
+import dita.discogs.core as dc
+from dita.config import CONFIG
+from dita.config import PATH
+from dita.config import QUEUE_FILE
+from dita.config import TARGET_DIR
+from dita.discogs.artist import Artist
+from dita.discogs.artist import get_artist_id
+from dita.discogs.rate import rate_release
+from dita.tagfuncs import glob_full
+from dita.tagfuncs import open_url
 
 # import pandas as pd
 # from discogs.browser import Browser
@@ -386,9 +386,12 @@ class Queue:
         # i don't like this, but browse_list should not need any knowledge of artist
         # ideally, this would be a dict/df with 'queued' attribute
         albums = [
-            f"{QUEUE_SYMBOL}{alb}" if f"{artist}/{alb}" in self.queue
-            #
-            else alb
+            (
+                f"{QUEUE_SYMBOL}{alb}"
+                if f"{artist}/{alb}" in self.queue
+                #
+                else alb
+            )
             for alb in albums
         ]
 

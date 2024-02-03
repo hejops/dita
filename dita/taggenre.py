@@ -21,17 +21,17 @@ from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3NoHeaderError
 from titlecase import titlecase
 
-from config import CONFIG
-from config import PATH
-from config import SOURCE_DIR
-from config import TARGET_DIR
-from file.convert import glob_full
-from tagfuncs import add_headers
-from tagfuncs import file_to_tags
-from tagfuncs import get_audio_files
-from tagfuncs import select_from_list
-from tagfuncs import set_tag
-from tagfuncs import shallow_recurse
+from dita.config import CONFIG
+from dita.config import PATH
+from dita.config import SOURCE_DIR
+from dita.config import TARGET_DIR
+from dita.file.convert import glob_full
+from dita.tagfuncs import add_headers
+from dita.tagfuncs import file_to_tags
+from dita.tagfuncs import get_audio_files
+from dita.tagfuncs import select_from_list
+from dita.tagfuncs import set_tag
+from dita.tagfuncs import shallow_recurse
 
 # from tagfuncs import is_audio_file
 # from tagfuncs import save_tags

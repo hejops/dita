@@ -9,10 +9,10 @@ import pandas as pd
 import streamlit as st
 from st_clickable_images import clickable_images
 
-import discogs.collection
-from discogs.core import d_get
-from discogs.core import DISCOGS_CSV
-from discogs.release import get_release_tracklist
+from dita.discogs.collection import Collection
+from dita.discogs.core import d_get
+from dita.discogs.core import DISCOGS_CSV
+from dita.discogs.release import get_release_tracklist
 
 # from discogs.compare import ytmusic
 # from discogs.core import d_get
@@ -94,7 +94,7 @@ def show_grid(grid: pd.DataFrame):
 
 
 DF = pd.read_csv(DISCOGS_CSV, index_col=0).drop_duplicates("date_added")
-COLL = discogs.collection.Collection(DF, drop_imgs=False)
+COLL = Collection(DF, drop_imgs=False)
 
 # i don't really like this var tbh
 # at this point, it refers to the unfiltered coll
@@ -138,7 +138,7 @@ with col2:
 
     FILTERS = st.text_input(
         "Additional filters",
-        help=discogs.collection.Collection.filter.__doc__,
+        help=Collection.filter.__doc__,
     )
     if FILTERS:
         FILTERS = ",".join([MIN_RATING, FILTERS])

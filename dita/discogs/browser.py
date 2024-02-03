@@ -21,8 +21,8 @@ import sys
 
 import pandas as pd
 
-from discogs.collection import d_get
-from discogs.release import get_release_tracklist
+from dita.discogs.collection import d_get
+from dita.discogs.release import get_release_tracklist
 
 # from tagfuncs import CONFIG
 

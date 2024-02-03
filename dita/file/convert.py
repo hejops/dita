@@ -2,6 +2,7 @@
 """Module for converting audio files to MP3.
 
 """
+# from pprint import pprint
 # import subprocess
 import os
 import re
@@ -9,7 +10,6 @@ import shlex
 import shutil
 import sys
 import zipfile
-from pprint import pprint
 from subprocess import PIPE
 from subprocess import Popen
 from typing import Any
@@ -25,11 +25,11 @@ from tinytag import TinyTag
 from tinytag.tinytag import TinyTagException
 from tqdm import tqdm
 
-from config import CONFIG
-from config import SOURCE_DIR
-from tagfuncs import fill_tracknum
-from tagfuncs import glob_full
-from tagfuncs import is_audio_file
+from dita.config import CONFIG
+from dita.config import SOURCE_DIR
+from dita.tagfuncs import fill_tracknum
+from dita.tagfuncs import glob_full
+from dita.tagfuncs import is_audio_file
 
 # from mutagen.easyid3 import EasyID3
 # from mutagen.mp4 import MP4Tags
