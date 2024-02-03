@@ -13,7 +13,7 @@ from shutil import rmtree
 import pandas as pd
 import readchar
 import requests
-from mutagen import File
+from mutagen._file import File
 from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 from natsort import natsort_keygen  # , natsorted
@@ -26,12 +26,15 @@ from dita.config import PATH
 from dita.config import SOURCE_DIR
 from dita.config import STAGED_FILE
 from dita.config import TARGET_DIR
-from dita.discogs import artist
-from dita.discogs import release
+from dita.discogs.artist import get_transliterations
 from dita.discogs.core import cli_search
 from dita.discogs.core import d_get
 from dita.discogs.core import display_release_results
 from dita.discogs.core import search_release
+from dita.discogs.release import apply_transliterations
+from dita.discogs.release import get_discogs_tags
+from dita.discogs.release import get_primary_url
+from dita.discogs.release import get_release_tracklist
 from dita.file import mover
 from dita.tag.core import align_lists
 from dita.tag.core import eprint
@@ -57,6 +60,8 @@ REQUIRED_FIELDS = {
     "title",
     "tracknumber",
 }
+
+TTY = sys.__stdin__.isatty()
 
 
 def tags_to_columns(val):
@@ -313,7 +318,7 @@ class Tagger:
 
             # while we only really need the tracklist for len and dur checks,
             # the tags are used for diagnostics, e.g. align_lists
-            discogs_tags = release.get_discogs_tags(rel)
+            discogs_tags = get_discogs_tags(rel)
 
             if discogs_tags.empty:
                 continue
@@ -384,8 +389,8 @@ class Tagger:
         if all(is_ascii(x) for x in discogs_tags.artist):
             return True
 
-        transliterations = artist.get_transliterations(rel)
-        discogs_tags = release.apply_transliterations(transliterations, discogs_tags)
+        transliterations = get_transliterations(rel)
+        discogs_tags = apply_transliterations(transliterations, discogs_tags)
 
         if not all(is_ascii(x) for x in discogs_tags.artist):
             print("no trans")
@@ -531,7 +536,7 @@ class Tagger:
         if _id.startswith("[r"):
             _id = _id[2:-1]
         rel = d_get(_id)
-        discogs_tags = release.get_discogs_tags(release=rel)
+        discogs_tags = get_discogs_tags(release=rel)
         # lprint(discogs_tags)
         self.apply_discogs_tags(discogs_tags, rel)
 
@@ -552,7 +557,7 @@ class Tagger:
         )
 
         if rel:
-            self.apply_discogs_tags(release.get_discogs_tags(rel), rel)
+            self.apply_discogs_tags(get_discogs_tags(rel), rel)
         else:
             print("nothing selected")
             # continue
@@ -652,7 +657,7 @@ class Tagger:
             rel = d_get(int(_id.id.iloc[0]), verbose=True)
         else:
             rel = d_get(int(_id.id), verbose=True)
-        discogs_tags = release.get_discogs_tags(release=rel)
+        discogs_tags = get_discogs_tags(release=rel)
         self.apply_discogs_tags(discogs_tags, rel)
 
     # }}}
@@ -943,9 +948,7 @@ def get_clipboard() -> str:
             return clip_str[2:-1]
 
         if clip_str.startswith("[m"):
-            return release.get_primary_url(d_get(f"/masters/{clip_str[2:-1]}")).split(
-                "/"
-            )[-1]
+            return get_primary_url(d_get(f"/masters/{clip_str[2:-1]}")).split("/")[-1]
 
         return ""
 
@@ -1021,7 +1024,7 @@ def order_files_by_duration(
     files: list[str],
 ) -> list[str]:
     """Attempt to sort files to match durations from Discogs"""
-    ref_df = release.get_release_tracklist(rel)
+    ref_df = get_release_tracklist(rel)
 
     assert all(ref_df.dur)
 
@@ -1134,5 +1137,4 @@ def main():
 
 
 if __name__ == "__main__":
-    TTY = sys.__stdin__.isatty()
     main()

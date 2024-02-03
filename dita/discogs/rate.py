@@ -15,16 +15,9 @@ import requests
 
 import dita.discogs.core as dc
 from dita.config import TARGET_DIR
-from dita.discogs.artist import Artist
-from dita.discogs.artist import Label
 from dita.discogs.core import search_with_relpath
 from dita.tag.core import lprint
 from dita.tag.core import shuote
-
-# from artist import Artist
-# from tag.core import PATH
-# from tag.core import eprint
-
 
 # can be config
 IGNORED_FORMATS = {
@@ -364,13 +357,12 @@ def rate_from_str(_str: str):
 
 
 def main():
-    # discogs.artist.Label(195387).rate_all()
-    # raise ValueError
-
     # all main commands must involve rating in some way
 
-    # discogs.artist.Artist(1158911).rate_all()
-    # raise Exception
+    # if placed at top level, will cause circular import
+    from dita.discogs.artist import Artist
+    from dita.discogs.artist import get_artist_id
+    from dita.discogs.artist import Label
 
     if "/release/" in sys.argv[1]:
         rate_release(dc.d_get(dc.get_id_from_url(sys.argv[1])))
@@ -382,16 +374,16 @@ def main():
         rate_from_str(sys.argv[1])
     elif os.path.isfile(sys.argv[1]):
         with open(sys.argv[1], "r", encoding="utf-8") as f:
-            for l in f.readlines():
-                if "," not in l:
+            for line in f.readlines():
+                if "," not in line:
                     break
-                rate_from_str(l.strip())
+                rate_from_str(line.strip())
 
     else:
         if sys.argv[1].isnumeric():
             artist_id = int(sys.argv[1])
         else:  # artist name
-            artist_id = artist.get_artist_id(
+            artist_id = get_artist_id(
                 " ".join(sys.argv[1:]),
                 check_coll=False,
             )
