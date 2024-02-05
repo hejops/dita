@@ -13,12 +13,11 @@ import readline
 import sys
 import urllib.parse
 
-import mpv  # python-mpv
 import pandas as pd
 import requests
 from Levenshtein import distance as levdist
 from mutagen.easyid3 import EasyID3
-from mutagen.id3 import ID3NoHeaderError
+from mutagen.id3._util import ID3NoHeaderError
 from titlecase import titlecase
 
 from dita.config import CONFIG
@@ -32,9 +31,6 @@ from dita.tag.core import get_audio_files
 from dita.tag.core import select_from_list
 from dita.tag.core import set_tag
 from dita.tag.core import shallow_recurse
-
-# from tag.core import is_audio_file
-# from tag.core import save_tags
 
 GENRES_FILE = PATH + "/" + CONFIG["tag"]["genres"]
 GENRE_SUFFIXES = CONFIG["tag"]["genre_suffixes_to_remove"].split(",")
@@ -451,6 +447,8 @@ if __name__ == "__main__":
         ROOT_DIR = SOURCE_DIR
 
     if INTERACTIVE:
+        import mpv  # python-mpv
+
         os.system("waitdie mpv ; vol --auto")
         # default = '`~!@#$%^&*()-=+[{]}\|;:'",<>/?'    # note how space is not included!
         readline.set_completer_delims("\t\n;")
