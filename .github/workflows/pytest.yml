@@ -21,4 +21,5 @@ jobs:
       - name: Run pylint
         run: |
           poetry add pylint
-          poetry run pytest -x -vv tests/test*.py
+          sed -i -r "/token/ s|$|${{ secrets.TEST_DISCOGS_TOKEN }}|g; /username/ s|$|${{ secrets.TEST_DISCOGS_USERNAME }}|g" ./dita/config
+          poetry run pytest -x -vv $(git ls-files | grep 'test.*\.py')

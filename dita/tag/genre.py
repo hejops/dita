@@ -83,7 +83,7 @@ if os.path.isfile(GENRES_FILE):
     # https://stackoverflow.com/a/34297689
     GENRES_DF = GENRES_DF[~GENRES_DF.index.duplicated(keep="first")]
 else:
-    if input(f"{GENRES_FILE} not found. Build?") == "y":
+    if sys.__stdin__.isatty() and input(f"{GENRES_FILE} not found. Build?") == "y":
         dump_library_genres()
         sys.exit()
     else:
