@@ -5,6 +5,8 @@ A command-line interface for automated mp3 file tagging using data from
 [foo_discogs](https://bitbucket.org/zoomorph/foo_discogs/src/master/) component
 for [foobar2000](http://www.foobar2000.org/).
 
+Only Linux is officially supported at this time.
+
 ## About
 
 Goals set out in the development of the project include:
