@@ -17,22 +17,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-
-      # - name: Install dependencies
-      #   run: |
-      #     python -m pip install --upgrade pip
-      #     python -m venv venv
-      #     # https://stackoverflow.com/a/74669486
-      #     # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-environment-variable
-      #     . venv/bin/activate
-      #     echo PATH=$PATH >> $GITHUB_ENV
-      #     pip install -U pip wheel setuptools
-      #     pip install pylint
-      #     pip install -r requirements.txt
-      #     # https://github.com/pylint-dev/pylint/blob/59194ebfa600b91ec4d5cef49370b7132b0413a3/pylint/lint/base_options.py#L153
-      #     pylint --fail-under=9 $(git ls-files '*.py')
-      #     deactivate
-
       # https://github.com/marketplace/actions/python-poetry-action#workflow-example-cache-the-virtual-environment
       - name: Install poetry
         uses: abatilo/actions-poetry@v2
