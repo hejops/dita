@@ -6,6 +6,7 @@ must be taken with the data that is available there.
 
 """
 # from pprint import pprint
+import argparse
 import http.client as httplib
 import json
 import os
@@ -45,30 +46,6 @@ def dump_library_genres():
     print(dirs[0])
     raise ValueError
 
-    # artists = glob_full(lib_root, recursive=False)
-    # d_list = []
-    # print(len(artists), "artists to be written to", GENRES_FILE)
-    # for art in tqdm(artists):
-    #     files = glob_full(art, first_match="mp3")
-    #     if not files or not os.path.isfile(files[0]):
-    #         continue
-    #     try:
-    #         tags = file_to_tags(files[0])
-    #         d_list.append(
-    #             {
-    #                 "artist": tags["artist"][0],
-    #                 "genre": tags["genre"][0],
-    #             }
-    #         )
-    #     except (KeyError, NotImplementedError):
-    #         continue
-    #     except KeyboardInterrupt:
-    #         break
-
-    # df = pd.DataFrame(d_list).sort_values("artist").drop_duplicates(subset=["artist"])
-    # df.to_csv(GENRES_FILE, index=False)
-    # print(len(df))
-
 
 if os.path.isfile(GENRES_FILE):
     GENRES_DF = pd.read_csv(
@@ -98,7 +75,7 @@ def fix_library_genres():
     artists_to_fix = GENRES_DF[GENRES_DF.genre.isin(bad)].index.to_list()
     for art in artists_to_fix:
         path = f"{TARGET_DIR}/{art}"
-        main(path, interactive=True, no_auto=True)
+        process_dirs(path, interactive=True, no_auto=True)
 
 
 def get_closest_string(text: str) -> list[str]:
@@ -283,7 +260,8 @@ def prompt_genre(
     else:
         lastfm_genres = GENRES
 
-    player.play(_dir)
+    if PLAYER:
+        PLAYER.play(_dir)
 
     if lastfm_genres:
         input_genre = select_from_list(
@@ -302,7 +280,8 @@ def prompt_genre(
             if not input_genre:
                 input_genre = curr_genre
 
-    player.stop()
+    if PLAYER:
+        PLAYER.stop()
 
     assert input_genre in GENRES, input_genre
 
@@ -316,7 +295,7 @@ def prompt_genre(
     print()
 
 
-def main(
+def process_dirs(
     root_dir: str,
     interactive: bool = True,
     no_auto: bool = False,
@@ -371,9 +350,12 @@ def main(
 
         # pprint(files)
 
+        tags_list = []
         try:
             # 1. read 1st file tags (must read all if no headers)
             first_track_tags = file_to_tags(files[0])
+            if not first_track_tags:
+                continue
             artist = first_track_tags["artist"][0]
             # 2. artist's genre matches reference value
             # best case; iteration ends here
@@ -390,7 +372,8 @@ def main(
         except KeyError:  # no 'artist' field
             continue
 
-        first_track_tags = tags_list[0]
+        if not tags_list or not (first_track_tags := tags_list[0]):
+            continue
 
         # 3. artist field should not be empty; this is actually caught in try_auto
         artist = first_track_tags["artist"]
@@ -410,43 +393,31 @@ def main(
     print(f"{success}/{num_dirs} OK")
 
 
-CONNECTED = have_internet()
+def parse_args():
+    parser = argparse.ArgumentParser()
+    args = {
+        "--dump": {"action": "store_true"},
+        "--auto": {"action": "store_true"},
+        "--directory": {"action": "store_const", "default": SOURCE_DIR},
+    }
 
-if __name__ == "__main__":
+    for arg, arg_opts in args.items():
+        parser.add_argument(arg, **arg_opts)
+
+    return parser.parse_args()
+
+
+def main():
+    global PLAYER
     assert os.path.isdir(TARGET_DIR)
 
-    INTERACTIVE = sys.__stdin__.isatty()
+    args = parse_args()
+    assert os.path.isdir(args.directory)
+    if args.dump:
+        dump_library_genres()
+        sys.exit()
 
-    # os.system("waitdie mpv ; vol --auto")
-    # readline.parse_and_bind("tab: complete")
-    # readline.set_completer(completer)
-    # player = mpv.MPV(ytdl=False)
-    # player["video"] = "no"
-    # player["start"] = "50%"
-    # player["input-ipc-server"] = "/tmp/mp_pipe"
-    # fix_library_genres()
-    # raise ValueError
-
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--dump":
-            dump_library_genres()
-            sys.exit()
-
-        if sys.argv[1] == "-a":
-            INTERACTIVE = False
-            ROOT_DIR = SOURCE_DIR
-
-        elif os.path.isdir(sys.argv[1]):
-            ROOT_DIR = sys.argv[1]
-
-        else:
-            # usually dir not exist, or file was passed
-            raise NotImplementedError
-
-    else:
-        ROOT_DIR = SOURCE_DIR
-
-    if INTERACTIVE:
+    if not args.auto:
         import mpv  # python-mpv
 
         os.system("waitdie mpv ; vol --auto")
@@ -454,13 +425,16 @@ if __name__ == "__main__":
         readline.set_completer_delims("\t\n;")
         readline.parse_and_bind("tab: complete")
         readline.set_completer(completer)
-        player = mpv.MPV(ytdl=False)
-        player["video"] = "no"
-        player["start"] = "50%"
-        player["input-ipc-server"] = "/tmp/mp_pipe"
+        PLAYER = mpv.MPV(ytdl=False)
+        PLAYER["video"] = "no"
+        PLAYER["start"] = "50%"
+        PLAYER["input-ipc-server"] = "/tmp/mp_pipe"
 
     try:
-        main(ROOT_DIR, interactive=INTERACTIVE)
+        process_dirs(
+            args.directory,
+            interactive=not args.auto,
+        )
         save_db()
 
     # note: Exception does not handle KeyboardInterrupt
@@ -472,3 +446,10 @@ if __name__ == "__main__":
     except Exception as e:
         save_db()
         raise e
+
+
+if __name__ == "__main__":
+    CONNECTED = have_internet()
+    PLAYER = None
+
+    main()
