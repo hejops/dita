@@ -2,11 +2,10 @@
 """Module for scraping Bandcamp (since RSS feeds have been discontinued)
 
 """
-# from pprint import pprint
-# from typing import Generator
 import json
 import os
 from datetime import datetime
+from typing import Iterator
 
 import requests
 from bs4 import BeautifulSoup
@@ -54,7 +53,7 @@ def get_album_age(album_url: str) -> int:
 def get_label_albums(
     label_name: str,
     max_days: int = 7,
-) -> list[str]:
+) -> Iterator[str]:
     """Retrieve albums on the first page of a Bandcamp label's releases
     published within the last <n> days.
     """
@@ -67,7 +66,6 @@ def get_label_albums(
         return []
 
     soup = BeautifulSoup(page.content, "html.parser")
-    albums = []
     for album in soup.find_all(
         "li",
         attrs={
@@ -80,19 +78,14 @@ def get_label_albums(
         },
     ):
         if album.a["href"].startswith("https"):
-            # external urls
-            url = album.a["href"]
+            url = album.a["href"]  # external urls
         else:
             url = label_url.removesuffix("/music") + album.a["href"]
 
-        # print(url)
-
         if 0 < get_album_age(url) <= max_days:
-            albums.append(url)
-        else:
-            break
+            yield url
 
-    return albums
+    return None
 
 
 def get_user_subscriptions(username: str) -> list[str]:
@@ -134,10 +127,5 @@ def get_albums_of_week(username: str) -> list[str]:
     namely: ["title", "author", "feedurl", "url"] - rss needs to extract info
     of url-only bc urls anyway, so... never mind."""
 
-    # with open(BC_SUBS_FILE, "w", encoding="utf-8") as f:
     subs = get_user_subscriptions(username)
-
-    # with open(BC_SUBS_FILE, "r", encoding="utf-8") as f:
-    #     labels = f.readlines()
-
     return [alb for label in subs for alb in get_label_albums(label)]
