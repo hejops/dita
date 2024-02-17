@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Iterator
 
 import requests
+import tqdm
 from bs4 import BeautifulSoup
 
 BC_SUBS_FILE = f"{os.path.expanduser('~')}/.config/newsboat/bandcamp"
@@ -53,6 +54,7 @@ def get_album_age(album_url: str) -> int:
 def get_label_albums(
     label_name: str,
     max_days: int = 7,
+    verbose: bool = False,
 ) -> Iterator[str]:
     """Retrieve albums on the first page of a Bandcamp label's releases
     published within the last <n> days.
@@ -70,6 +72,7 @@ def get_label_albums(
         "li",
         attrs={
             # different layouts must be accounted for
+            # assume albums are sorted newest first
             "class": [
                 "music-grid-item square",
                 "music-grid-item square first-four",
@@ -82,10 +85,11 @@ def get_label_albums(
         else:
             url = label_url.removesuffix("/music") + album.a["href"]
 
-        if 0 < get_album_age(url) <= max_days:
-            yield url
-
-    return None
+        if not 0 < get_album_age(url) <= max_days:
+            break
+        if verbose:
+            print(url)
+        yield url
 
 
 def get_user_subscriptions(username: str) -> list[str]:
@@ -117,7 +121,7 @@ def get_user_subscriptions(username: str) -> list[str]:
     followed = json.loads(following.text)
 
     # yes, 'followeers' is not a typo...
-    return [x["url_hints"]["subdomain"].strip() for x in followed["followeers"]]
+    return sorted(x["url_hints"]["subdomain"].strip() for x in followed["followeers"])
 
 
 def get_albums_of_week(username: str) -> list[str]:
@@ -126,6 +130,11 @@ def get_albums_of_week(username: str) -> list[str]:
     While we could return some kind of dict - to match columns of rss.py,
     namely: ["title", "author", "feedurl", "url"] - rss needs to extract info
     of url-only bc urls anyway, so... never mind."""
+    # 8 min / 286
 
-    subs = get_user_subscriptions(username)
-    return [alb for label in subs for alb in get_label_albums(label)]
+    labels = get_user_subscriptions(username)
+
+    albums = []
+    for label in tqdm.tqdm(labels):
+        albums += list(get_label_albums(label))
+    return albums
