@@ -440,9 +440,10 @@ def get_artists(
 
     # 2a. release -> extraartists -> role = composer
     # 2b. release -> extraartists -> tracks
-    artists = get_artists_from_album_credits(release)
-    if artists_ok("album credits (guess)"):
-        return artists
+    if is_classical(release):
+        artists = get_artists_from_album_credits(release)
+        if artists_ok("album credits (guess)"):
+            return artists
 
     # 3. release -> artists (reject anv)
     # while anv should not be used (since it can vary with each release), there
