@@ -85,11 +85,13 @@ def get_label_albums(
         else:
             url = label_url.removesuffix("/music") + album.a["href"]
 
+        if "/album/" not in url:
+            continue
         if not 0 < get_album_age(url) <= max_days:
             break
         if verbose:
             print(url)
-        yield url
+        yield url.partition("?")[0]
 
 
 def get_user_subscriptions(username: str) -> list[str]:
