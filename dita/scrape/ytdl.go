@@ -5,13 +5,11 @@ package main
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/user"
-	"regexp"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -39,23 +37,27 @@ func array_split(slice []string, chunkSize int) [][]string {
 	return chunks
 }
 
-func get_sub_urls(fname string) {
-	// https://stackoverflow.com/a/16615559
-
-	file, err := os.Open(fname)
+func read_lines() []string {
+	usr, _ := user.Current()
+	home := usr.HomeDir
+	file, err := os.Open(home + "/.config/newsboat/cache.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
 
+	var urls []string
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		fmt.Println(scanner.Text())
+		urls = append(urls, scanner.Text())
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
+	return urls
 }
 
 func download(url string, channel chan string) { // {{{
@@ -65,6 +67,7 @@ func download(url string, channel chan string) { // {{{
 
 	splits := strings.Split(url, "/")
 	fname := strings.Split(splits[2], ".")[0] + "-" + splits[len(splits)-1] + ".mp3"
+	// TODO: cwd, not .
 	fname = "./testdir/" + fname
 
 	if _, err := os.Stat(fname); err == nil {
@@ -74,9 +77,8 @@ func download(url string, channel chan string) { // {{{
 	}
 
 	gdl, err := goutubedl.New(context.Background(), url, goutubedl.Options{})
-	// gdl.Info
 	if err != nil {
-		// TODO: not received?
+		// TODO: handle 429
 		fmt.Println("could not fetch", url)
 		channel <- fname
 		return
@@ -87,6 +89,7 @@ func download(url string, channel chan string) { // {{{
 	fmt.Println("downloading", url)
 
 	result, err := gdl.DownloadWithOptions(
+		// TODO audio only
 		context.Background(),
 		goutubedl.DownloadOptions{PlaylistIndex: 1}, // 1-indexed!
 	)
@@ -108,64 +111,13 @@ func download(url string, channel chan string) { // {{{
 	channel <- fname
 } // }}}
 
-func get_nb_urls() []string { // {{{
-	// https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
-
-	usr, _ := user.Current()
-	home := usr.HomeDir
-
-	db, err := sql.Open("sqlite3", home+"/.config/newsboat/cache.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	// [id guid title author url feedurl pubDate content unread enclosure_url enclosure_type enqueued flags deleted base content_mime_type enclosure_description enclosure_description_mime_type]
-	rows, err := db.Query("SELECT content FROM rss_item;")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// var urls map[string]string
-	urls := make(map[string]int) // go has no hash set, but it does have hash map
-	re, _ := regexp.Compile(`https://[^.]+\.bandcamp\.com/album/[-\w]+`)
-	defer rows.Close()
-	for rows.Next() {
-		var content string
-		err = rows.Scan(&content)
-		if err != nil {
-			log.Fatal(err)
-		}
-		matches := re.FindAllString(content, -1)
-		if len(matches) > 0 {
-			for _, match := range matches {
-				urls[match] = 0
-			}
-		}
-	}
-	err = rows.Err()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	keys := make([]string, len(urls))
-
-	i := 0
-	for k := range urls {
-		keys[i] = k
-		i++
-	}
-
-	return keys
-} // }}}
-
 // https://stackoverflow.com/a/41439170
 // https://koalatea.io/go-channels/
 // channels -> single array directly https://stackoverflow.com/a/36563718
 
 func main() {
-	urls := get_nb_urls()
-	n_chunks := 4
+	urls := read_lines()
+	n_chunks := 3 // 4 chunks is very likely to 429
 	chunks := array_split(urls, len(urls)/n_chunks)
 	c := make(chan string)
 	for i := 0; i < n_chunks; i++ {
