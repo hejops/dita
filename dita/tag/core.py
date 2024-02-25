@@ -289,23 +289,7 @@ def is_audio_file(
     As there is no stdlib module for #3, an external dependency is required
     (https://github.com/h2non/filetype.py). This is faster than the similar
     python-magic, but can yield false negatives (e.g. ape).
-
-    Args:
-        file: [TODO:description]
-        extensions: [TODO:description]
-
-    Returns:
-        [TODO:description]
     """
-
-    # print(
-    #     file,
-    #     extensions,
-    #     # filetype.guess_extension(file),
-    #     # os.path.islink(file),
-    #     # os.path.isfile(file),
-    # )
-    # # raise ValueError
 
     # m4a ext = mp4 filetype
     if "m4a" in extensions:
@@ -316,21 +300,16 @@ def is_audio_file(
     if ext == "ape":
         return True
 
-    if (
-        os.path.isfile(file)
-        # and file.split(".")[-1] in extensions
-        and ext in extensions
-        # for extreme corner case: .jpg.mp3 (need magic)
-        # not that slow, i guess?
-        # while uppercase extensions are rare (like 1%), the .lower() call
-        # should still not be skipped
-        and filetype.guess_extension(file)
-        and filetype.guess_extension(file) in extensions
-        # and filetype.guess_extension(file).lower() in extensions
-    ):
-        # print()
-        # or os.path.islink(file)
-        return True
+    if os.path.isfile(file) and ext in extensions:
+        # if the byte check fails, expect to see it caught by any media player.
+        # it is not our responsibility to fix this
+        if (
+            filetype.guess_extension(file)
+            and filetype.guess_extension(file) in extensions
+        ):
+            return True
+        print("bad file header")
+        return False
 
     if os.path.islink(file) and not os.path.isfile(file):
         eprint("Removing broken symlink:", file)
