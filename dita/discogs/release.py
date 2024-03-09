@@ -155,15 +155,19 @@ def apply_transliterations(
     """Append transliteration to artist column if unambiguous (or if tty input
     possible), else return df unchanged."""
 
+    def append_transliteration(x):
+        match = transliterations.get(x.lower())
+        if match:
+            return f"{x} ({match[0]})"
+        return x
+
     if (
         # 1 transliteration per artist
         all(len(x) == 1 for x in transliterations.values())
         # all artists have 1 translit
         and len(transliterations) == len(set(discogs_tags.artist))
     ):
-        discogs_tags.artist = discogs_tags.artist.apply(
-            lambda x: f"{x} ({transliterations[x.lower()][0]})"
-        )
+        discogs_tags.artist = discogs_tags.artist.apply(append_transliteration)
         assert all(is_ascii(x) for x in discogs_tags.artist)
         # return discogs_tags
 

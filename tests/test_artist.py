@@ -1,11 +1,31 @@
 import pytest
 
+import dita.discogs.core as dc
 from dita.discogs.artist import Artist
 from dita.discogs.artist import get_artist_id
+from dita.discogs.artist import get_transliterations
 from dita.discogs.artist import Label
+from dita.discogs.release import apply_transliterations
+from dita.discogs.release import get_discogs_tags
 
-# def get_transliterations(artist_id: str) -> list[str]:
-#     # artist_id = 4126661
+
+def test_transliterations():
+    # artist_id = 4126661
+    # artist_id = 2695565
+
+    # https://www.discogs.com/release/16483842
+    rel = dc.d_get(16483842)
+    trans = get_transliterations(rel)
+    assert trans == {"до скону": ["Do Skonu"]}
+    tags = get_discogs_tags(rel)
+    tags = apply_transliterations(trans, tags)
+    assert tags.artist.iloc[0] == "До Скону (Do Skonu)"
+
+
+# def test_transliteration():
+#     # https://www.discogs.com/release/16483842
+#
+#     # assert dr.get_artists(rel, 1) == ["1"]
 
 
 # def test_get_credits():
