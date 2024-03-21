@@ -124,14 +124,14 @@ class Queue:
 
     def check_watch(self) -> Iterator[str]:
         """Check if any files/dirs can be resumed by mpv"""
-        # for file in os.listdir(WATCH_DIR):
-        # with open(os.path.join(WATCH_DIR, file), "r", encoding="utf-8") as fobj:
         for file in glob_full(WATCH_DIR, dirs_only=False):
             with open(file, "r", encoding="utf-8") as f:
                 lines = f.read().splitlines()
                 for line in lines:
                     # watch_later format: '# /lib_root/[artist/album]/file'
                     if TARGET_DIR not in line:
+                        continue
+                    if not os.path.isfile(line.removeprefix("# ")):
                         continue
                     queued = line.removeprefix(f"# {TARGET_DIR}/")
                     # ['a/b/c', 'd', 'e']
@@ -227,6 +227,13 @@ class Queue:
         # os.system(f"pactl set-sink-volume @DEFAULT_SINK@ {DEFAULT_VOL}%")
 
         path = shlex.quote(f"{TARGET_DIR}/{album}")
+
+        if not os.path.isdir(f"{TARGET_DIR}/{album}"):
+            os.system("notify-send 'np was deleted'")
+            if album in self.queue:
+                self.queue.remove(album)
+            self.play_from_sample()
+            return
 
         # there is very rarely a need to check mpv exit status (subprocess)
         os.system(f"mpv {MPV_ARGS} {path}")
@@ -514,16 +521,15 @@ class Queue:
 def main():
     parser = argparse.ArgumentParser(description="Play music")
 
-    # parser.add_argument(
-    #     "--queue",
-    #     action="store_true",
-    #     help="queue album",
-    #     # from <artist>",
-    # )
-
     args = {
-        "--queue": {"action": "store_true", "help": "queue album"},
-        "--shuf-artist": {"action": "store_true", "help": "shuffle artist"},
+        "--queue": {
+            "action": "store_true",
+            "help": "queue album",
+        },
+        "--shuf-artist": {
+            "action": "store_true",
+            "help": "shuffle artist",
+        },
         "--no-log": {
             "action": "store_false",
             "dest": "log",
@@ -550,16 +556,6 @@ def main():
 
     # print(args)
     # sys.exit()
-
-    # if args.queue:
-    #     if args.play:
-    #         queue.play(queue.select_from_lib(), loop=False, log=args.log)
-    #     else:
-    #         queue.select_from_lib()
-    #     queue.quit()
-    # elif args.play:
-    #     queue.play(queue.select_from_lib(), loop=False, log=args.log)
-    #     queue.quit()
 
     queue = Queue()
 
