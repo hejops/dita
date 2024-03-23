@@ -713,30 +713,6 @@ def truncate_filename(
     return "/".join([root, artist, album, fname])
 
 
-# def get_imgs(
-#     src_dir: str,
-# ) -> None:
-#     # find covers
-#     imgs = []
-#     for img in glob(
-#         # "*.jpg",
-#         "*/folder.jpg",
-#         root_dir=src_dir,
-#         recursive=True,
-#     ):
-#         img = f"{src_dir}/{img}"
-#         img_dest = (
-#             src_to_dest[src_to_dest.src.str.startswith(os.path.dirname(img))]
-#             .iloc[0]
-#             .dest
-#         )
-#         img_dest = os.path.dirname(img_dest) + "/folder.jpg"
-#         imgs.append({"src": img, "dest": img_dest})
-#     src_to_dest = pd.concat(
-#         [src_to_dest, pd.DataFrame(imgs)],
-#     )
-
-
 def multi_move(dirs: list[str]):
     """Given a list of dirs already in library, edit artist or genre tag, then
     move."""
