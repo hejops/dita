@@ -129,47 +129,26 @@ class Mover:  # {{{
             if self.targets.empty:
                 print("emptied")
                 return
-        # raise ValueError
 
         # 1. determine full abspath
-        self.targets = self.targets.join(
-            self.targets.apply(self.get_dest_filename, axis=1)
-        )
+        self.targets["dest"] = self.targets.apply(self.get_dest_filename, axis=1)
 
-        # print(self.targets)
-        # raise ValueError
+        if not (hundred := self.targets[self.targets.tracknumber.str.len() > 2]).empty:
+            # if dir has >99 files, all files must have tracknumber of len 3
+            # tags don't need to be updated
+            hundred = self.targets.album.isin(hundred.album)
+            self.targets.loc[hundred, "tracknumber"] = self.targets[
+                hundred
+            ].tracknumber.apply(lambda x: str(int(x)).zfill(3))
+            self.targets["dest"] = self.targets.apply(self.get_dest_filename, axis=1)
 
         # 2. truncate fnames (before ext)
         # TODO: apply() to affected rows only
         too_long = self.targets[self.targets.dest.str.len() > 255]
-        # longest = self.targets.sort_values("dest", key=lambda x: x.str.len()).iloc[-1]
-        # trunc = truncate_filename(longest)
-        # print(trunc)
-        # raise ValueError
         if not too_long.empty:
-            # if len(sorted(self.targets.dest.to_list(), key=len)[-1]) > 255:
-            # print(too_long)
-            # raise Exception
-
-            # self.targets.dest = self.targets.apply(
-            #     truncate_filename,
-            #     axis=1,
-            # )
-
             self.targets.dest = self.targets.dest.apply(truncate_filename)
 
-        # if dir has >99 files, all files must have tracknumber of len 3
-        # TODO: tags are not updated (not strictly necessary)
-
         self.targets.tracknumber = self.targets.tracknumber.apply(front_int)
-
-        hundred = self.targets.album.isin(
-            self.targets[self.targets.tracknumber.str.len() > 2].album
-        )
-        if not hundred.empty:
-            self.targets.loc[hundred, "tracknumber"] = self.targets[
-                hundred
-            ].tracknumber.apply(lambda x: str(int(x)).zfill(3))
 
         # 3. src_to_dest.compilation == 1 -> prepare make_va_symlinks
         # don't actually make them yet
@@ -282,7 +261,7 @@ class Mover:  # {{{
     #         set_tag(_tags, "date", date)
 
     @staticmethod
-    def get_dest_filename(row: pd.Series) -> pd.Series:
+    def get_dest_filename(row: pd.Series) -> str:
         """Construct destination filename from metadata in a row, then
         add/update 'dest' field to/in the row. Format is fixed to:
 
@@ -314,15 +293,13 @@ class Mover:  # {{{
         ]
         assert all(dest)
 
-        # print(self.targets.dest.iloc[0])
-        # raise ValueError
+        return os.path.join(TARGET_DIR, *sanitize_filename(dest))
 
-        row = pd.Series(
-            os.path.join(TARGET_DIR, *sanitize_filename(dest)),
-            index=["dest"],
-        )
-
-        return row
+        # row = pd.Series(
+        #     os.path.join(TARGET_DIR, *sanitize_filename(dest)),
+        #     index=["dest"],
+        # )
+        # return row
 
     def queue_new_albums(self) -> None:
         """Add new relpaths to library and queue files"""
@@ -420,9 +397,9 @@ class Mover:  # {{{
         # print(self.targets.columns)
         right = self.targets.tags.apply(pd.Series)
         self.targets = self.targets[self.targets.columns.difference(right.columns)]
-        self.targets = self.targets.merge(
-            right, left_index=True, right_index=True
-        ).applymap(dita.tag.fix.tags_to_columns)
+        self.targets = self.targets.merge(right, left_index=True, right_index=True).map(
+            dita.tag.fix.tags_to_columns
+        )
 
     def dry_run(self):
         """Perform a dry-run of the move, then show the resulting relpaths.
@@ -647,7 +624,7 @@ def generate_symlinks(
 
 def truncate_filename(
     # row: pd.Series,
-    src_filename: str,
+    dest_filename: str,
     max_artist_len: int = 160,  # https://www.discogs.com/master/2152342
     maxlen: int = 255,
 ) -> str:
@@ -657,12 +634,12 @@ def truncate_filename(
     unit testing.
     """
 
-    dest_filename = src_filename  # .dest
+    # dest_filename = src_filename  # .dest
     excess = len(dest_filename) - maxlen
 
     # print(excess)
 
-    assert "." in dest_filename, src_filename
+    assert "." in dest_filename
     fullpath, ext = dest_filename.rsplit(".", maxsplit=1)
 
     root, artist, album, fname = fullpath.rsplit("/", maxsplit=3)
