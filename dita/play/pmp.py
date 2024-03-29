@@ -119,7 +119,7 @@ class Queue:
         """Get path of first file opened by mpv"""
         for proc in psutil.process_iter():
             if proc.name() == "mpv":
-                return proc.open_files()[0].path
+                return next(f.path for f in proc.open_files() if f.path.endswith("mp3"))
         return ""
 
     def check_watch(self) -> Iterator[str]:
