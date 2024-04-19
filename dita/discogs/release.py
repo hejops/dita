@@ -257,23 +257,7 @@ def get_discogs_tags(release: dict) -> pd.DataFrame:  # {{{
             composers=set(artists),
         )
 
-        # add transliterations to non-ascii composers
-        # see tag.fix:trans_ok
-        artists_not_ascii = [a for a in artists if not is_ascii(a)]
-        if artists_not_ascii:
-            transliterations = da.get_transliterations(release)
-            discogs_tags = apply_transliterations(transliterations, discogs_tags)
-            # if all(tag.core.is_ascii(x) for x in discogs_tags.artist):
-            #     return True
-
-            # # list(filter(a, performers) for a in artists)
-            # print(
-            #     artists,
-            #     type(artists),
-            #     release.get("genres"),
-            #     release.get("styles"),
-            # )
-            # raise NotImplementedError
+        # for SRP, transliteration check should -not- be done at this level
 
         # remove all composers
         performers = [p for p in performers if p not in artists]
