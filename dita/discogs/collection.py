@@ -611,6 +611,7 @@ if __name__ == "__main__":
             DISCOGS_CSV,
             index_col=0,
             parse_dates=["date_added"],  # allow calculation of date differences
+            na_filter=False,  # corner case: None (Meshuggah) is not nan
         )
         coll = Collection(DISCOGS_DF)
         coll.filter(" ".join(sys.argv[1:]))
