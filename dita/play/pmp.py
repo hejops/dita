@@ -381,10 +381,11 @@ class Queue:
         # work around this by modifying options via the preview cmd
 
         preview_opt = shlex.quote(
-            # prepend options with prefix ({} is the placeholder)
-            "--preview=echo " + shlex.quote(preview_prefix) + "/{}"
-            # remove QUEUE_SYMBOL internally
-            f" | sed 's#/{QUEUE_SYMBOL}#/#'"
+            "--preview=echo {}"
+            # remove QUEUE_SYMBOL
+            f" | sed -r 's#^{QUEUE_SYMBOL}##'"
+            # prepend with prefix
+            f" | sed -r 's#^#{shlex.quote(preview_prefix)}/#'"
             " | xargs -d '\n' ls -A",
         )
 
