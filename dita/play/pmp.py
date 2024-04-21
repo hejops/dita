@@ -20,9 +20,9 @@ from random import shuffle
 from typing import Iterator
 
 import psutil
+import requests
 import yt_dlp
 from pyfzf import FzfPrompt
-from requests.exceptions import ConnectionError
 
 from dita.config import CONFIG
 from dita.config import PATH
@@ -34,9 +34,6 @@ from dita.discogs.core import search_with_relpath
 from dita.discogs.rate import rate_release
 from dita.tag.core import glob_full
 from dita.tag.core import open_url
-
-# import pandas as pd
-# from discogs.browser import Browser
 
 DEFAULT_VOL = 40
 
@@ -62,15 +59,6 @@ WATCH_DIR = f"{os.path.expanduser('~')}/.local/state/mpv/watch_later"
 # discard resume timestamps
 MPV_ARGS = "--mute=no --no-audio-display --pause=no --start=0%"
 QUEUE_SYMBOL = "> "
-
-
-def _writelines(
-    file: str,
-    lines: list[str],
-) -> None:
-    """Called before and after playback, and before quitting"""
-    with open(file, "w+", encoding="utf-8") as fob:
-        fob.writelines(l + "\n" for l in lines)
 
 
 def read_queue_file() -> list[str]:
@@ -113,7 +101,16 @@ class Queue:
     def __len__(self) -> int:
         return len(self.queue)
 
-    # files{{{
+    # files {{{
+
+    def write(self) -> None:
+        """Called before and after playback, and before quitting"""
+        with open(QUEUE_FILE, "w+", encoding="utf-8") as fob:
+            fob.writelines(
+                l + "\n"
+                for l in list(dict.fromkeys(self.queue))
+                # remove dups but preserve order
+            )
 
     def get_np_file(self) -> str:
         """Get path of first file opened by mpv"""
@@ -142,15 +139,6 @@ class Queue:
 
     # external {{{
 
-    def open_rym(self):
-        np_file = self.get_np_file()
-        artist = np_file.split("/")[-3]
-        album = np_file.split("/")[-2]
-        open_url(
-            "https://rateyourmusic.com/search?searchtype=l&searchterm=",
-            [artist, album],
-        )
-
     def open_spotify(self):
         """Uses filename, not tags"""
         np_file = self.get_np_file()
@@ -171,7 +159,7 @@ class Queue:
                 download=False,
             )
 
-        if result and "entries" in result and result["entries"]:
+        if result and result.get("entries"):
             open_url(
                 result["entries"][0]["webpage_url"].replace(
                     "www.youtube", "music.youtube"
@@ -191,15 +179,6 @@ class Queue:
             open_url("https://www.discogs.com/search/?q=", self.np_album.split())
         sys.exit()
 
-    # def open_rym(self):
-    #     url = shlex.quote(
-    #         "https://rateyourmusic.com/release/album/"
-    #         f"{self.np_album.lower().replace(' ','-')}"
-    #     )
-    #     os.system(f"xdg-open {url}")
-    #     # 	prefix="https://rateyourmusic.com/search?searchtype=l&searchterm="
-    # }}}
-
     # play {{{
 
     def resume_from_np(self):
@@ -211,16 +190,15 @@ class Queue:
         self,
         album: str,
         loop: bool = True,
-        log: bool = True,
+        # log: bool = True,
         rate_others: bool = True,
     ):
         """Play album (relpath), select another when finished"""
-        # pre
-        # check files?
 
         assert album
-        if log:
-            _writelines(NP_LOG, [album])
+        # if log:
+        with open(NP_LOG, "w") as f:
+            f.write(album)
 
         # # check pulseaudio; this is very much hardware dependent, and should not be handled here
         # os.system("pactl set-sink-mute @DEFAULT_SINK@ false")
@@ -244,9 +222,6 @@ class Queue:
         # ignored, if a re-read of the queue file is not done
         self.queue = read_queue_file()
 
-        # print(list(self.check_watch()))
-        # raise ValueError
-
         # post
         if album in list(self.check_watch()):
             print("Will be resumed", album)
@@ -257,14 +232,7 @@ class Queue:
             self.queue.remove(album)
         assert self.queue
 
-        _writelines(QUEUE_FILE, list(dict.fromkeys(self.queue)))
-
-        # if not rate:
-        #     return
-
-        # os.system("notify-send " + shlex.quote(f"{LIB_ROOT}/{album}"))
-        # while file_in_use(f"{LIB_ROOT}/{album}"):
-        #     sleep(1)
+        self.write()
 
         # playback was ended, and dir was deleted externally; may lead to a
         # race condition, if the next block is triggered before delete finishes
@@ -282,7 +250,7 @@ class Queue:
 
         try:
             release = search_with_relpath(album)
-        except ConnectionError:
+        except requests.exceptions.ConnectionError:
             release = {}
 
         if release:
@@ -302,7 +270,7 @@ class Queue:
         else:
             self.select_from_artist(artist)
 
-        _writelines(QUEUE_FILE, list(dict.fromkeys(self.queue)))
+        self.write()
 
         if loop:
             self.play_from_sample()
@@ -326,7 +294,7 @@ class Queue:
                 sam = self.queue
             else:
                 sam = sample(self.queue, num)
-            album = self.browse_list(sam)
+            album = self.browse_list_multi(sam)[0]
         self.play(album)
 
     # }}}
@@ -335,117 +303,99 @@ class Queue:
 
     def select_from_lib(
         self,
-        sort_artists: bool = True,
-    ) -> str:
+    ) -> None:
         """Browse artists, then albums of artist, then add to queue"""
         artists = os.listdir(TARGET_DIR)
 
-        if sort_artists:
-            artists = sorted(artists)
-        else:
-            shuffle(artists)
+        artists = sorted(artists)
 
-        artist = self.browse_list(artists)
-        return self.select_from_artist(artist)
+        qa = {q.split("/")[0] for q in self.queue}
+        qa = qa & set(artists)
+        for artist in self.browse_list_multi(
+            # artists
+            {a: a in qa for a in artists}
+        ):
+            self.select_from_artist(artist)
 
     def select_from_artist(
         self,
         artist: str = "",
-        # sort_last_word: bool = True,
-    ) -> str:
-        """Returns relpath, which is implicitly added to queue. Returns empty
-        string if nothing selected, or if album is already queued.
+    ) -> None:
+        """Get relpath of a single album, which is implicitly added to queue.
 
-        Albums of artist are assumed to have the following format:
-            '<album> (<year>)'
+        Returns empty string if nothing selected, or if album is already queued.
+
+        For sorting purposes, albums of artist are assumed to have the following format:
+            `album (year)`
         """
         if not artist:
             artist = self.np_artist
 
         _dir = os.path.join(TARGET_DIR, artist)
         if not os.path.isdir(_dir):
-            return ""
-
-        # albums = shallow_recurse(_dir, maxdepth=1)
-
-        # df = pd.DataFrame({a: glob_full(a) for a in albums})
-        # print(df)
+            return
 
         albums = os.listdir(_dir)
+        # albums = [x.path for x in os.scandir(_dir)]
 
         assert all(alb.endswith(")") for alb in albums), artist
         albums = sorted(
-            # relpaths are preferred for now
-            # shallow_recurse(_dir, maxdepth=1),
             albums,
-            key=lambda x: x.split()[-1] + x,
+            key=lambda x: x.split()[-1] + x,  # sort year, then alpha
         )
-
-        # if sort_last_word:
-        #     albums = sorted(
-        #         # shallow_recurse(_dir, maxdepth=1),
-        #         albums,
-        #         key=lambda x: x.split()[-1] + x,
-        #     )
-        # else:
-        #     albums = sorted(albums)
-
-        # i don't like this, but browse_list should not need any knowledge of artist
-        # ideally, this would be a dict/df with 'queued' attribute
-        albums = [
-            (
-                f"{QUEUE_SYMBOL}{alb}"
-                if f"{artist}/{alb}" in self.queue
-                #
-                else alb
-            )
-            for alb in albums
-        ]
 
         try:
-            album = self.browse_list(
-                albums,
-                preview_prefix=f"{TARGET_DIR}/{artist}",
-            ).removeprefix(QUEUE_SYMBOL)
+            albums = self.browse_list_multi(
+                {alb: f"{artist}/{alb}" in self.queue for alb in albums},
+                preview_prefix=artist,
+            )
         except IndexError:
-            return ""
+            return
 
-        album = f"{artist}/{album}"
-
-        # somewhat redundant (can just check .startswith(QUEUE_SYMBOL))
-        if album in self.queue:
-            print("Already queued")
-            # return ""
-        else:
-            # self.add(album)
-            self.queue.append(album)
-            assert self.queue
-            print("Queued:", album)
-
-        return album
+        for album in albums:
+            album = f"{artist}/{album}"  # .removeprefix(QUEUE_SYMBOL)
+            if album in self.queue:
+                print("Already queued")
+            else:
+                self.queue.append(album)
+                assert self.queue
+                print("Queued:", album)
 
     @staticmethod
-    def browse_list(
-        dirs: list[str],
-        preview_prefix: str = TARGET_DIR,
-    ) -> str:
-        """fzf only. Not responsible for exception handling. This should be
-        done outside."""
-        # df = pd.DataFrame()
-        # Browser(df)
+    def browse_list_multi(
+        opts: list[str] | dict[str, bool],
+        preview_prefix: str = "",
+    ) -> list[str]:
+        """
+        `opts` is always expected to be basenames. If `opts` is a `dict`, per-item
+        decorations can be prepended conditionally.
+        """
+        if not preview_prefix:
+            preview_prefix = TARGET_DIR
+        else:
+            preview_prefix = os.path.join(TARGET_DIR, preview_prefix)
 
-        # least insane shell quoting
-        # '> ' is to be kept in options, but removed for the preview cmd
+        # fzf has no lambda-like format function; options passed to fzf are
+        # displayed and returned unchanged. because of this, passing full paths
+        # (and reconstructing them after selection) is tedious. however, we can
+        # work around this by modifying options via the preview cmd
+
         preview_opt = shlex.quote(
-            "--preview=echo "
-            + shlex.quote(preview_prefix)
-            + "/{} | sed 's/> //' | xargs -d '\n' ls -A",
+            # prepend options with prefix ({} is the placeholder)
+            "--preview=echo " + shlex.quote(preview_prefix) + "/{}"
+            # remove QUEUE_SYMBOL internally
+            f" | sed 's#/{QUEUE_SYMBOL}#/#'"
+            " | xargs -d '\n' ls -A",
         )
 
-        return prompt.prompt(
-            choices=dirs,
-            fzf_options=" ".join(FZF_OPTS + [preview_opt]),
-        )[0]
+        if isinstance(opts, dict):
+            opts = [QUEUE_SYMBOL + opt if mark else opt for opt, mark in opts.items()]
+
+        sel = prompt.prompt(
+            choices=opts,
+            fzf_options=" ".join(FZF_OPTS + ["--multi", preview_opt]),
+        )
+        return [x.removeprefix(QUEUE_SYMBOL) for x in sel]
 
     def menu(self):
         """An extremely simple action menu driven by FZF. Playback-related
@@ -461,13 +411,11 @@ class Queue:
             }
 
         options |= {
-            # "List all queued albums": self.play_from_sample,
             "Open current track in YouTube": self.open_yt,
             "Open current track in Spotify": self.open_spotify,
-            "Open current album in RYM": self.open_rym,
+            # "Open current album in RYM": self.open_rym,
             "Open current album in Discogs": self.open_discogs,
             "Quit": self.quit,
-            # "Open current artist in Last.fm"
         }
 
         playing_options = {
@@ -497,7 +445,7 @@ class Queue:
     def shuffle_artist(self):
         """Select an artist, then play all albums in random order."""
         artists = os.listdir(TARGET_DIR)
-        artist = self.browse_list(artists)
+        artist = self.browse_list_multi(artists)[0]
         albums = [
             os.path.join(artist, alb) for alb in os.listdir(f"{TARGET_DIR}/{artist}")
         ]
@@ -511,10 +459,7 @@ class Queue:
     def quit(self):
         """Save queue and exit"""
         assert self.queue
-        _writelines(
-            QUEUE_FILE,
-            list(dict.fromkeys(self.queue)),  # remove dups but preserve order
-        )
+        self.write()
         sys.exit()
 
 
@@ -526,14 +471,13 @@ def main():
             "action": "store_true",
             "help": "queue album",
         },
+        "--queue-all": {
+            "action": "store_true",
+            "help": "queue album",
+        },
         "--shuf-artist": {
             "action": "store_true",
             "help": "shuffle artist",
-        },
-        "--no-log": {
-            "action": "store_false",
-            "dest": "log",
-            "help": "don't write np log",
         },
     }
 
@@ -554,26 +498,32 @@ def main():
     )
     args = parser.parse_args()
 
-    # print(args)
-    # sys.exit()
-
     queue = Queue()
 
     if args.shuf_artist:
         queue.shuffle_artist()
 
-    if args.queue and not args.play:
+    elif args.queue and not args.play:
         queue.select_from_lib()
 
-    elif args.play:
-        queue.play(queue.select_from_lib(), loop=False, log=args.log)
+    # elif args.play:
+    #     queue.play(
+    #         queue.select_from_lib(),
+    #         loop=False,
+    #         log=args.log,
+    #     )
 
     elif args.artist:
         queue.select_from_artist(args.artist)
 
     elif queue.will_resume and not queue.playing:
-        print("Found queued:", "\n".join(queue.resumes))
-        queue.play(queue.resumes[0])
+        print("Found queued:", ", ".join(queue.resumes))
+        for i, alb in enumerate(queue.resumes):
+            queue.play(
+                alb,
+                loop=i + 1 == len(queue.resumes),
+                rate_others=i + 1 == len(queue.resumes),
+            )
 
     else:
         queue.menu()
