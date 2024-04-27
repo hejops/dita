@@ -231,9 +231,8 @@ class Tagger:
         """
 
         # https://github.com/pandas-dev/pandas/issues/39531#issuecomment-771346521
-        right = self.df.tags.apply(pd.Series)
+        right = self.df.tags.apply(lambda t: pd.Series(dict(t)))
         self.df = self.df[self.df.columns.difference(right.columns)]
-        # print(right, self.df)
         self.df = self.df.merge(
             right,
             left_index=True,
