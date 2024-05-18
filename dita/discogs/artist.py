@@ -417,52 +417,50 @@ class Label(Artist):
         return dc.d_get(str(self.releases.id[0]))["labels"][0]["name"]
 
 
-def get_transliterations(
-    rel: dict,
-    # artist_dicts: list[dict[str, Any]],
-) -> dict[str, list[str]]:
+def get_transliterations(rel: dict) -> dict[str, list[str]]:
     """Append transliteration (in parentheses) to artist name for ease of
-    reading/indexing. Discogs-approved transliterations are tried first.
-    { 'artist1': 'artist1 (abc)', ... }
+    reading/indexing.
+
+    Usually followed by `apply_transliterations`.
+
+    Discogs-approved transliterations are tried first:
+        `{ 'artist1': 'artist1 (abc)', ... }`
 
     If 'artistX' has no transliterations, it is excluded from the dict.
 
     Warning: dict keys are lowercase
     """
 
-    artist_dicts = rel["artists"]
+    artists: list[dict] = rel["artists"]
     # print(artists_dict)
 
     try:
         # corner case: non-ascii in artist track credits only
         # https://www.discogs.com/release/892711
-        artist_dicts += [t["artists"][0] for t in rel["tracklist"]]
+        artists += [t["artists"][0] for t in rel["tracklist"]]
     except KeyError:
         pass
 
     transliterations: dict[str, list[str]] = {}
 
-    for artist_dict in artist_dicts:
+    for art in artists:
         # print(artist_dict)
-        native = artist_dict["name"]
+        native = dc.clean_artist(art["name"])
         if is_ascii(native):
             transliterations[native.lower()] = [native]
             continue
 
-        artist = dc.d_get(f"/artists/{str(artist_dict['id'])}")
+        art_info = dc.d_get(f"/artists/{str(art['id'])}")
 
-        # if is_ascii(artist["name"]):
-        #     trans = [artist["name"]]
-
-        if "namevariations" not in artist:
+        if "namevariations" not in art_info:
             transliterations[native.lower()] = []
             continue
 
         # print(pd.Series(artist))
         # raise ValueError
         transliterations[native.lower()] = [
-            name
-            for name in artist["namevariations"]
+            dc.clean_artist(name)
+            for name in art_info["namevariations"]
             if name.isascii()
             # number of words must match (Nechaev); difficult since this
             # only applies to 'latin' scripts
