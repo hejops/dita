@@ -515,105 +515,37 @@ def search_with_relpath(relpath: str) -> dict:
 def cli_search(
     artist: str,
     album: str,
-    # date: str,
-    # sep: str = " / ",
 ) -> list[str]:
-    """Wrapper for search_discogs_release, that allows user to edit search
-    queries. A great interface is tough within the confines of readline.
+    """
+
+    Wrapper for search_discogs_release, that allows user to edit search
+    queries.
 
     Returns list of release ids.
     """
 
-    # artist, album, year = input_with_prefill(
-    #     "Search: ",
-    #     text=sep.join([artist, album, date]),
-    # ).split(sep)
+    delim = " ::: "
+    prefill = delim.join([artist, album])
+    query = input_with_prefill("Search:\n", text=prefill)
 
-    # multiline, depends on how good the user is with readline
-    prefill = "\n".join([f"artist:{artist}", f"album:{album}"])
-    # f"date:{date}",
-    artist, album = [
-        l.partition(":")[2]
-        for l in input_with_prefill(
-            "Search:\n",
-            text=prefill,
-        ).split("\n")
-    ]
+    if delim in query:
+        artist, album = query.split(delim)
+        results = search_release(
+            artist=artist,
+            album=album,
+            primary=True,
+        )
+    else:
+        results = search_release(
+            album=prefill,
+            primary=True,
+        )
 
-    results = search_release(
-        artist=artist,
-        album=album,
-        # year=year,
-    )
-
-    if not results:
+    if results.empty:
         eprint("no results")
         return []
 
-    return [r["id"] for r in results]
-
-
-def release_as_str(rel: dict) -> str:
-    """Display essential information of a Discogs release. tabulate is always
-    preferred because right-aligned strings from the default printer are
-    annoying to read."""
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.max_rows", None)
-
-    _str = [tabulate_dict(release.get_release_tracklist(rel))]
-
-    tags = release.get_discogs_tags(rel)
-    if not tags.empty:
-        _str = _str + [tags.artist.iloc[0], tags.album.iloc[0]]
-
-    return "\n".join(_str)
-
-
-def display_release_results(
-    ids: list[str],
-    num_tracks: int,
-) -> dict:
-    """Only used in tag.fix; may be replaced with the simpler display_release().
-    Similar to try_auto(), might merge.
-
-    Args:
-        ids: [TODO:description]
-        num_tracks: [TODO:description]
-
-    Returns:
-        Discogs release, empty if nothing matches
-    """
-    for i in ids:
-        rel = d_get(i)
-
-        if not {"artists", "tracklist", "uri"}.issubset(rel):
-            continue
-
-        print(rel["uri"].partition("-")[0])
-        print(rel["title"])
-        print(release_as_str(rel))
-
-        tracklist = release.get_release_tracklist(rel)
-
-        # lprint(rel)
-        print(" / ".join(a["name"] for a in rel["artists"]))
-        # print(rel["artists_sort"])
-        print(rel["title"])
-        print(rel["year"])
-        print(rel["uri"])
-        print(tracklist)
-        print()
-
-        if len(tracklist) != num_tracks:
-            continue
-
-        ans = input("Accept? [y/N]: ")
-
-        if ans == "y":
-            return rel
-
-    print("Not found")
-    return {}
+    return results.id.to_list()
 
 
 def remove_words(
@@ -633,13 +565,17 @@ def remove_words(
 
 
 def search_release(
-    artist: str,
-    album: str,
-    interactive: bool = True,
+    artist: str = "",
+    album: str = "",
+    # interactive: bool = True,
     primary: bool = False,
-) -> list[dict[str, Any]]:
-    """Returns Discogs search results of an artist/album query. Limited to
-    first 10; I've never found a larger number to be necessary.
+) -> pd.DataFrame:
+    """Return Discogs search results of an `artist`/`album` query.
+
+    If either param is omitted, a general search is performed.
+
+    Only the first 10 are retrieved; I've never found a larger number to be
+    necessary.
 
     If a match is not found in non-interactive mode, an empty dict is returned
     immediately. In interactive mode, search queries are allowed to be edited
@@ -647,19 +583,8 @@ def search_release(
 
     Not url encoding is apparently ok.
 
-    Args:
-        artist: [TODO:description]
-        album: [TODO:description]
-        interactive: [TODO:description]
-        primary: whether to return primary release, regardless of tracklist.
-        releases with no 'master_url' are "orphans" and will be ignored.
-
-    Returns:
-        list[dict]: Discogs search results; empty if no match found. Almost
-        always transformed into a DataFrame.
-
-        Note: search results are NOT the same as releases. Most importantly,
-        the former does not contain tracklist/artists, while the latter does.
+    Note: search results are NOT the same as releases. Most importantly, search
+    results do not contain tracklist/artists, while releases do.
 
     """
 
@@ -690,45 +615,7 @@ def search_release(
 
     max_results = 10
 
-    if not (artist and album):
-        return []
-
     artist, album = sanitize(artist, album)
-
-    # print(interactive)
-    # sys.exit()
-
-    # album = remove_words(album)
-    # print(album)
-    # raise ValueError
-
-    # if not " ".join(w for w in artist.split() if "!" not in w):  # TVXQ!
-    #     raise NotImplementedError
-
-    # d_get(get_artist_id(artist)["results"][0]["uri"] + "/releases")
-
-    # {
-    #     "id": 4337911,
-    #     "master_id": None,
-    #     "master_url": None,
-    #     "resource_url": "https://api.discogs.com/artists/4337911",
-    #     "title": "TVXQ!",
-    #     "type": "artist",
-    #     "uri": "/artist/4337911-TVXQ!",
-    #     "user_data": {"in_collection": True, "in_wantlist": False},
-    # }
-
-    # from urllib.parse import quote_plus
-    # artist = quote_plus(artist)
-
-    # from urllib.parse import quote
-    # artist = quote(artist)
-
-    # from urllib.parse import quote
-    # album = quote(album)
-
-    # from urllib.parse import quote_plus
-    # album = quote_plus(album)
 
     # Notes:
     #
@@ -745,49 +632,21 @@ def search_release(
 
     # anv should not be used over artist
 
-    search_url = f"/database/search?release_title={album}&artist={artist}&type=release"
-
-    # if year:
-    #     search_url += f"&year={year}"
-    #     eprint(f"Searching discogs: {artist} - {album} - {year}")
-    # else:
-
-    # eprint(f"Searching discogs: {artist} - {album}")
-
-    # TODO: use translit name to find non-ascii name
-    data = d_get(
-        search_url,
-        # verbose=True,
-    )
-
-    # print(data)
-    # raise ValueError
-
-    if not interactive and not data.get("results"):
-        eprint(f"No results: {artist} - {album}")
-        return []
-
-    # dict.get is safer, because some searches are invalid and don't contain a
-    # 'results' field
-    # TODO: has a lot of parallels with cli_search
-    while not data.get("results"):
-        # if search fails, ask to change search terms, then re-run search
-        sep = " / "
-        query = input_with_prefill("Search query: ", f"{artist}{sep}{album}")
-
-        try:
-            artist, album = query.split(sep)
-        except ValueError:
-            return []
-
+    if artist and album:
         search_url = (
             f"/database/search?release_title={album}&artist={artist}&type=release"
         )
-        data = d_get(search_url)
+        eprint(f"Searching discogs: {artist} - {album}")
+    else:
+        query = " ".join((artist, album))
+        query = re.sub(r"[^\w -']", " ", query)
+        search_url = f"/database/search?q={query}&type=release"
 
-    eprint(len(data["results"]), "results found\n")
+    data = d_get(search_url)
 
-    results: list[dict] = data["results"]
+    # if not interactive and not data.get("results"):
+    #     eprint(f"No results: {artist} - {album}")
+    #     return pd.DataFrame()
 
     # # no real way to distinguish Draft releases without extra GET
     # pprint(results)
