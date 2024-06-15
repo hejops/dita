@@ -66,17 +66,23 @@ class Artist:  # {{{
         self.total = results["pagination"]["items"]
         # print(self.total)
 
+        def random_page(_max: int) -> dict:
+            self.page = choice(range(1, _max))
+            results = self.get_releases()
+            if "Main" in pd.DataFrame(results["releases"]).role.to_list():
+                return results
+            return random_page(self.page)
+
         if (
             len(self) > self.max_items
             and results["releases"][0]["year"] < self.min_year
         ):
-            print(
-                len(self),
-                "releases, first release:",
-                results["releases"][0]["year"],
-            )
-            self.page = choice(range(1, len(self) // self.per_page))
-            results = self.get_releases()
+            # print(
+            #     len(self),
+            #     "releases, first release:",
+            #     results["releases"][0]["year"],
+            # )
+            results = random_page(results["pagination"]["pages"])
 
         # not calling fillna will lead to float NaNs all over the place
         self.releases = pd.DataFrame(results["releases"]).fillna(0)
