@@ -341,9 +341,11 @@ def get_release_tracklist(release: dict) -> pd.DataFrame:
 
     # https://stackoverflow.com/a/54276300
 
-    ignore_words = ("DVD", "Video")
+    ignore_words = ("dvd", "video")
     df: pd.DataFrame = df[
-        (df.type_ != "heading") & (df.title.str.split()[0] not in ignore_words)
+        (df.type_ != "heading")
+        # & (df.position.str.split()[0] not in ignore_words)
+        & (df.position.apply(lambda t: not any(w in t.lower() for w in ignore_words)))
     ]
 
     df.reset_index(inplace=True)
