@@ -537,7 +537,7 @@ def cli_search(
         )
     else:
         results = search_release(
-            album=prefill,
+            album=query,
             primary=True,
         )
 
