@@ -72,6 +72,14 @@ def read_queue_file() -> list[str]:
         return fobj.read().splitlines()
 
 
+def mpv_nowplaying() -> str:
+    return [
+        proc.as_dict()["open_files"]
+        for proc in psutil.process_iter()
+        if proc.name() == "mpv"
+    ][0][-1].path
+
+
 class Queue:
     """Queue object for managing playback queue"""
 
@@ -171,7 +179,12 @@ class Queue:
     def open_discogs(self):
         """Open in Discogs release page for currently playing album in
         browser"""
-        url = search_with_relpath(self.np_album).get("uri")
+        # try current mpv process first
+        if self.playing:
+            relpath = mpv_nowplaying().rsplit("/", 1)[0].removeprefix(TARGET_DIR + "/")
+        else:
+            relpath = self.np_album
+        url = search_with_relpath(relpath).get("uri")
         if url:
             print(url)
             open_url(url)
