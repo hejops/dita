@@ -138,47 +138,49 @@ def apply_transliterations(
     transliterations: dict[str, list[str]],
     discogs_tags: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Append transliteration to artist column if unambiguous (or if tty input
-    possible), else return df unchanged."""
+    """Append transliteration to artist column.
 
-    def append_transliteration(x):
-        match = transliterations.get(x.lower())
-        if match:
-            return f"{x} ({match[0]})"
-        return x
-
+    This only modifies the df if it is possible to apply from
+    `transliterations` in an unambiguous manner, or if tty input is possible.
+    Otherwise, the df is returned unchanged.
+    """
     if (
         # 1 transliteration per artist
         all(len(x) == 1 for x in transliterations.values())
         # all artists have 1 translit
         and len(transliterations) == len(set(discogs_tags.artist))
     ):
-        discogs_tags.artist = discogs_tags.artist.apply(append_transliteration)
+
+        def auto_transliterate(name: str) -> str:
+            match = transliterations.get(name.lower())
+            if match:
+                return f"{name} ({match[0]})"
+            return name
+
+        discogs_tags.artist = discogs_tags.artist.apply(auto_transliterate)
         assert all(is_ascii(x) for x in discogs_tags.artist)
-        # return discogs_tags
+        return discogs_tags
 
-    elif sys.__stdin__.isatty():
-        # print(transliterations)
-        # foo = transliterations.copy()
-        for native, trans_l in transliterations.items():
-            if len(trans_l) == 1:
-                trans = trans_l[0]
-            elif not trans_l:
-                # if artist["profile"]:
-                #     eprint(artist["profile"])
-                print("No transliterations found:")
-                open_url("https://duckduckgo.com/?t=ffab&q=", native)
-                trans = input(f"Provide transliteration for {native}: ")
-            else:
-                trans: str = select_from_list(trans_l, "Select transliteration")
+    if not sys.__stdin__.isatty():
+        # raise NotImplementedError
+        return discogs_tags
 
-            n_trans = f"{native} ({trans})"
-            discogs_tags.artist = discogs_tags.artist.apply(
-                lambda n: n.lower().replace(native, n_trans)
-            )
+    def transliterate(name: str) -> str:
+        if is_ascii(name):
+            return name
+        return name.lower().replace(native, f"{native} ({trans})")
 
-    # else:
-    #     raise NotImplementedError
+    for native, trans_l in transliterations.items():
+        if len(trans_l) == 1:
+            trans = trans_l[0]
+        elif not trans_l:
+            # print("No transliterations found:")
+            open_url("https://duckduckgo.com/?t=ffab&q=", native)
+            trans = input(f"Provide transliteration for {native}: ")
+        else:
+            trans: str = select_from_list(trans_l, "Select transliteration")
+
+        discogs_tags.artist = discogs_tags.artist.apply(transliterate)
 
     return discogs_tags
 
