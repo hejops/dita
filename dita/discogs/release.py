@@ -122,15 +122,20 @@ def get_artists_from_album_credits(release: dict) -> list[str]:
     return list(artist_ranges.values())
 
 
-def is_classical(release) -> bool:
-    return not set(release.get("genres", "")).intersection(
-        {
-            "Jazz",
-            "Pop",
-            "Folk, World, & Country",
-            "Electronic",
-            "Rock",
-        }
+def is_classical(release: dict) -> bool:
+    genres = set(release.get("genres", ""))
+    return (
+        not genres.intersection(
+            {
+                "Jazz",
+                "Pop",
+                "Folk, World, & Country",
+                "Electronic",
+                "Rock",
+            },
+        )
+        # edge case: classical and electronic -- https://www.discogs.com/release/2417085
+        or "Classical" in genres
     )
 
 
