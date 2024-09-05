@@ -37,19 +37,10 @@ def get_performers(
     release: dict,
     composers: set[str],
 ) -> list[str]:
-    """[TODO:summary]
+    """Extract from `artists` and `extraartists` fields of release.
 
-    'artists' and 'extraartists' fields of release are checked. Composers
-    (determined in advance by get_artists()) are subtracted.
-
-    Args:
-        release: [TODO:description]
-        composers: [TODO:description]
-
-    Returns:
-        [TODO:description]
+    Composers (determined in advance by get_artists()) are subtracted.
     """
-
     # print(discogs_release)
     if "main_release_url" in release:
         release = dc.d_get(release["main_release_url"])
@@ -62,11 +53,13 @@ def get_performers(
 
     performers = [x["name"] for x in release["artists"] if x["name"] not in composers]
 
-    if not performers:
+    if not performers and "extraartists" in release:
         # i have never needed more roles than this
         roles = ["conductor", "orchestra", "directed"]
         performers = [
-            x["name"] for x in release["extraartists"] if x["role"].lower() in roles
+            x["name"]
+            for x in release["extraartists"]
+            if x and x["role"].lower() in roles
         ]
 
     for comp in composers:
@@ -75,13 +68,6 @@ def get_performers(
             performers.remove(comp)
 
     performers = [dc.clean_artist(x) for x in performers]
-
-    # [a["name"] for a in release["extraartists"] if "ompos" in a["role"]]
-
-    # lprint("foo", release, composers, performers)
-    # raise Exception
-
-    # return performers
     return list(dict.fromkeys(performers))
 
 
