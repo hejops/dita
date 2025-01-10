@@ -1,51 +1,44 @@
 #!/usr/bin/env python3
-"""Module for converting audio files to MP3.
+"""Module for converting audio files to MP3."""
 
-"""
-# from pprint import pprint
-# import subprocess
+import argparse
 import os
 import re
 import shlex
 import shutil
 import sys
 import zipfile
-from subprocess import PIPE
-from subprocess import Popen
+from pathlib import Path
+from subprocess import PIPE, Popen
 from typing import Any
 
-from mutagen import File
+from mutagen._file import File
 from mutagen.aiff import AIFF
 from mutagen.easymp4 import EasyMP4
 from mutagen.flac import FLAC
-from mutagen.mp3 import EasyMP3
-from mutagen.mp3 import MP3
+from mutagen.mp3 import MP3, EasyMP3
+from mutagen.mp4 import MP4StreamInfoError
 from mutagen.oggopus import OggOpus
 from tinytag import TinyTag
 from tinytag.tinytag import TinyTagException
 from tqdm import tqdm
 
-from dita.config import CONFIG
-from dita.config import SOURCE_DIR
+from dita.config import CONFIG, SOURCE_DIR
 from dita.tag.core import fill_tracknum
-from dita.tag.core import glob_full
-from dita.tag.core import is_audio_file
-
-# from mutagen.easyid3 import EasyID3
-# from mutagen.mp4 import MP4Tags
+from dita.tag.io import glob_full, is_audio_file
 
 BITRATE_TARGET = int(CONFIG["convert"]["bitrate"])
 CONVERT_EXTENSIONS = [x.lower() for x in CONFIG["convert"]["filetypes"].split(",")]
 
-if BITRATE_TARGET in [256, 320]:
+if BITRATE_TARGET in {256, 320}:
     BITRATE_ARG = f"-b {BITRATE_TARGET}"
-elif BITRATE_TARGET in [0, 1, 2, 3, 4]:
+elif BITRATE_TARGET in {0, 1, 2, 3, 4}:
     BITRATE_ARG = f"-V {BITRATE_TARGET}"
 else:
     print("Bitrate was not set in config; defaulting to V0")
     BITRATE_ARG = "-V 0"
 
-DISC_REGEX = r"(cd|disco?|disk) ?0?[1-9]{1,2}"
+DISC_REGEX = r"(cd|disco?|disk)( |-)?0?[1-9]{1,2}"
 
 # TODO: reused as REQUIRED_FIELDS
 TAG_FIELDS = [
@@ -68,9 +61,7 @@ TAG_ABBREVS = {
 
 
 class Converter:
-    """Converter object. When initialised, it looks recursively for files to
-    convert.
-    """
+    """When initialised, `Converter` looks recursively for files to convert."""
 
     def __init__(
         self,
@@ -95,7 +86,7 @@ class Converter:
             # print(zipf)
             with zipfile.ZipFile(zipf, "r") as zip_ref:
                 zip_ref.extractall(os.path.dirname(zipf))
-            os.remove(zipf)
+            Path(zipf).unlink()
 
     def split_cue(self):
         """I hate this so much"""
@@ -103,7 +94,7 @@ class Converter:
 
         for cue in [f for f in self.files if f.endswith("cue")]:
             flac = cue.removesuffix("cue") + "flac"
-            if os.path.isfile(flac):
+            if Path(flac).is_file():
                 args = "shnsplit -t %n -o flac".split() + [
                     "-a",
                     os.path.basename(cue),
@@ -115,7 +106,7 @@ class Converter:
                     flac,
                 ]
                 execute_chain([args])
-                # os.remove(file)
+                # Path(file).unlink()
 
                 # execute_chain([["cuetag.sh", cue, os.path.dirname(cue) + "/0*.flac"]])
 
@@ -125,7 +116,7 @@ class Converter:
                 #     f"cuetag.sh {shlex.quote(cue)} {shlex.quote(os.path.dirname(cue))}/0*.flac"
                 # )
 
-                os.remove(flac)
+                Path(flac).unlink()
 
         # regen
         self.files = glob_full(
@@ -174,10 +165,14 @@ class Converter:
                 disc = tags.disc
             else:
                 # 'CD01', 'CD 1 - BWV 9, 178, 187'
-                _match: str = re.search(
-                    DISC_REGEX, src.split("/")[-2], flags=re.IGNORECASE
-                ).group(0)
-                disc = int("".join(c for c in _match if c.isnumeric()))
+                matches = re.search(
+                    DISC_REGEX,
+                    src.split("/")[-2],
+                    flags=re.IGNORECASE,
+                )
+                if not matches:
+                    continue
+                disc = int("".join(c for c in matches.group(0) if c.isnumeric()))
                 # print(disc)
                 # raise ValueError
 
@@ -209,7 +204,7 @@ class Converter:
         if not targets:
             return
 
-        if confirm and sys.__stdin__.isatty():
+        if confirm and sys.__stdin__ and sys.__stdin__.isatty():
             print("\n".join(targets.values()))
             print(len(targets))
             input("continue")
@@ -221,7 +216,7 @@ class Converter:
         os.system(f"find {shlex.quote(self.root_dir)} -type d -empty -delete")
 
     def convert_all(self) -> None:
-        """Main loop for converting all files with a supported extension."""
+        """Convert all files with a supported extension."""
         self.files = [f for f in self.files if is_audio_file(f, CONVERT_EXTENSIONS)]
         print(len(self.files), "files to convert")
         # lprint(self.files)
@@ -251,13 +246,15 @@ def get_merge_dest(file: str) -> str:
 
 
 def execute_chain(cmd_chain: list[list[str]]):
-    """Execute a sequence of piped commands, as in a shell. Memory safety not
-    guaranteed.
+    """Execute a sequence of piped commands, as in a shell.
+
+    Memory safety not guaranteed.
     """
     # https://github.com/karamanolev/WhatManager2/blob/master/what_transcode/flac_lame.py
     processes = []
     # outs = []
     for cmd in cmd_chain:
+        print(" ".join(cmd))
         if processes:
             # use stdout of last finished process as stdin
             p_stdin = processes[-1].stdout
@@ -294,8 +291,9 @@ def copy_tags(
     old_tags: Any,
     new_file: str,
 ):
-    """Copy tags from a lossless file (pre-conversion) into its lossy result
-    (assumed to be mp3).
+    """Copy tags from a lossless file (pre-conversion) into its lossy result.
+
+    The result is usually mp3.
     """
     new_tags: EasyMP3 = File(new_file, easy=True)
     for field in TAG_FIELDS:
@@ -306,15 +304,16 @@ def copy_tags(
             new_tags[field] = old_tags[field]
         else:
             new_tags[field] = old_tags[field][0]
-    assert all(k in old_tags for k in new_tags.keys())
+    assert all(k in old_tags for k in new_tags)
     new_tags.save()
 
 
 def convert_file(file: str):
-    """Convert a single file to MP3. Tags are typically only preserved within
-    the same filetype (e.g. MP3 -> MP3); in all other cases, it is necessary to
-    extract tags from the input file and apply them to the output file after
-    conversion.
+    """Convert a single file to MP3.
+
+    Tags are typically only preserved within the same filetype (e.g. MP3 ->
+    MP3); in all other cases, it is necessary to extract tags from the input
+    file and apply them to the output file after conversion.
 
     No logging is done, but it might be useful if conversion jobs are allowed
     to run repeatedly on the same set of files; this allows bitrate check to be
@@ -362,10 +361,10 @@ def convert_file(file: str):
 
         execute_chain(
             # weird listy constructions are a lesser evil (compared to shlexing)
-            [f"lame --silent {BITRATE_ARG} --disptime 1".split() + [file, tmp]]
+            [f"lame --silent {BITRATE_ARG} --disptime 1".split() + [file, tmp]],
         )
 
-        if os.path.isfile(tmp):
+        if Path(tmp).is_file():
             shutil.move(tmp, file)
         return
 
@@ -375,11 +374,11 @@ def convert_file(file: str):
     mp3 = file.removesuffix(ext) + "mp3"
 
     cue = file.removesuffix(ext) + "cue"
-    if os.path.isfile(cue):
+    if Path(cue).is_file():
         return
 
-    if os.path.isfile(mp3):
-        os.remove(file)
+    if Path(mp3).is_file():
+        Path(file).unlink()
         return
 
     if ext.lower() == "wav":
@@ -387,38 +386,58 @@ def convert_file(file: str):
     else:
         wav = file.removesuffix(ext) + "wav"
 
-    tags = parse_old_tags(file)
+    try:
+        tags = parse_old_tags(file)
+    except MP4StreamInfoError:
+        Path(file).unlink()  # we cannot possibly recover from this
+        return
 
     if ext.lower() == "flac":
         execute_chain(
             [
-                "flac --decode --stdout --totally-silent".split() + [file],
-                f"lame --silent {BITRATE_ARG} -".split() + [mp3],
-            ]
+                [*"flac --decode --stdout --totally-silent".split(), file],
+                [*f"lame --silent {BITRATE_ARG} -".split(), mp3],
+            ],
         )
 
     elif ext in CONVERT_EXTENSIONS:
         # print(file)
         # raise ValueError
         # 2 separate commands (in shell, this would require process substitution)
-        execute_chain(["ffmpeg -y -i".split() + [file, wav]])
-        execute_chain(
-            [f"lame --silent {BITRATE_ARG} --disptime 1".split() + [wav, mp3]]
-        )
-        os.remove(wav)
+        try:
+            # caused by yt-dlp downloads
+            execute_chain(["ffmpeg -y -i".split(), file, wav])
+            execute_chain(
+                [[*f"lame --silent {BITRATE_ARG} --disptime 1".split(), wav, mp3]],
+            )
+        except PermissionError:
+            Path(file).unlink()
+            return
+
+        if Path(wav).is_file():
+            Path(wav).unlink()
 
     else:
         raise NotImplementedError(file)
 
-    assert os.path.isfile(mp3)
+    # failed to convert, usually failed to read input
+    if not Path(mp3).is_file():
+        return
     copy_tags(tags, mp3)
-    os.remove(file)
+    Path(file).unlink()
     # print("Converted", file)
 
 
 def main():
-    con = Converter(SOURCE_DIR if len(sys.argv) == 1 else os.path.realpath(sys.argv[1]))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--path",
+        required=False,
+        default=SOURCE_DIR,
+    )
+    args = parser.parse_args()
 
+    con = Converter(os.path.realpath(args.path))
     con.split_cue()
     con.flatten_dirs()
     con.convert_all()
