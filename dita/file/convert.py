@@ -406,7 +406,7 @@ def convert_file(file: str):
         # 2 separate commands (in shell, this would require process substitution)
         try:
             # caused by yt-dlp downloads
-            execute_chain(["ffmpeg -y -i".split(), file, wav])
+            execute_chain([[*"ffmpeg -y -i".split(), file, wav]])
             execute_chain(
                 [[*f"lame --silent {BITRATE_ARG} --disptime 1".split(), wav, mp3]],
             )
