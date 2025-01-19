@@ -15,6 +15,7 @@ Support for non-Discogs-based data is not planned at the moment.
 https://docs.python.org/3/library/curses.html
 
 """
+
 # from pprint import pprint  # , pformat
 import curses
 import sys

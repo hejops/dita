@@ -1,12 +1,28 @@
-import pytest
-
 import dita.discogs.core as dc
 from dita.discogs.artist import Artist
+from dita.discogs.artist import Label
 from dita.discogs.artist import get_artist_id
 from dita.discogs.artist import get_transliterations
-from dita.discogs.artist import Label
 from dita.discogs.release import apply_transliterations
+from dita.discogs.release import get_artists
 from dita.discogs.release import get_discogs_tags
+from dita.discogs.release import get_performers
+
+
+def test_get_performers():
+    # rel = dc.d_get(22702211)
+    # get_performers(rel, set())
+
+    rel = dc.d_get(2417085)
+    artists = get_artists(rel, 4)
+    assert artists == ["Kaija Saariaho"]
+    perfs = get_performers(rel, set(artists))
+    assert perfs == [
+        # "Kaija Saariaho",
+        "Radion Sinfoniaorkesteri",
+        "Esa-Pekka Salonen",
+        "Camilla Hoitenga",
+    ]
 
 
 def test_transliterations():
@@ -63,9 +79,15 @@ def test_get_artist_id():
 def test_large_discog():
     # 18956,  # Stevie Wonder, 543 (3.7k incl appearances)
 
-    mozart = Artist(95546)
-    print(len(mozart))
-    assert 1 <= mozart.page <= 436
+    # mozart = Artist(95546)
+    # print(len(mozart))
+    # assert 1 <= mozart.page  # <= 436
+
+    # mahler = Artist(239236)
+    # # print(len(mahler))
+    # assert 1 <= mahler.page  # <= 436
+    # # api: 5377, site: 2546
+    # assert False
 
     # smetana = Artist(833315)
     # assert 1 <= smetana.page <= 44
@@ -111,7 +133,7 @@ def test_artist_chronology():
     assert masuda.releases.title.iloc[0] == "すずめ"
     assert masuda.releases.year.iloc[0] == 1981
 
-    masuda.filter_by_role(["Main"])
+    masuda.filter_by_role("Main")
     assert masuda.releases.title.iloc[0] == "すずめ"
     assert masuda.releases.year.iloc[0] == 1981
 

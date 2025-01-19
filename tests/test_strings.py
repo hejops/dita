@@ -23,6 +23,15 @@ def test_release_print():
         == "Die Kunst Der Fuge, BWV 1080 - Contrapunctus 1"
     )
 
+    assert "{" not in release.release_as_str(rel)
+    assert (
+        "\n".join(release.release_as_str(rel).split("\n")[:2])
+        == """\
+    index position  type_                                                                                                 title duration tracknumber  dur
+1       0           index                                                        Die Kunst Der Fuge, BWV 1080 - Contrapunctus 1     2:57          01  177\
+"""
+    )
+
 
 def test_list_diff():
     left = ["aaa", "bbb", "ccc", "ddd", "eee"]
@@ -126,6 +135,7 @@ def test_open_url():
 
 
 def test_clean_artist():
+    # TODO: https://www.discogs.com/release/10700391
     artists = {
         "Beatles, The": "The Beatles",
         "Morton Feldman - Turfan Ensemble, The, Philipp Vandré": (

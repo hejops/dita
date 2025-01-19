@@ -18,6 +18,7 @@ where <src> is typically the library root.
 Note: symlinks are typically not supported on Android
 
 """
+
 # from pprint import pprint
 # from random import sample
 import os
@@ -27,7 +28,7 @@ from pathlib import Path
 import pandas as pd
 
 from dita.config import TARGET_DIR
-from dita.discogs.collection import get_percentiles
+from dita.discogs.collection import filter_by_percentile
 from dita.discogs.collection import group_collection_by_artist
 from dita.discogs.collection import top_n_sum
 from dita.discogs.core import DISCOGS_CSV
@@ -112,7 +113,7 @@ def main() -> list[str]:
         pd.read_csv(DISCOGS_CSV),
         metric=lambda x: top_n_sum(x, strict=False, num=5),
     )
-    df = pd.concat([one_5, get_percentiles(df)[df.perc <= perc]])
+    df = pd.concat([one_5, filter_by_percentile(df, thresh=perc)])
 
     # remove artists that do not have a dir (usually performers)
     has_dir = df.artist.str.lower().isin(DIRNAMES_FOLD)

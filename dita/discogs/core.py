@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Module for fetching and manipulating data from the Discogs API. A personal
+"""Module for fetching and manipulating data from the Discogs API. A personal
 access token is required for some actions:
 
     https://www.discogs.com/settings/developers
@@ -8,6 +7,7 @@ access token is required for some actions:
 API: https://www.discogs.com/developers
 
 """
+
 # from pprint import pprint
 import json
 import re
@@ -21,10 +21,8 @@ from titlecase import titlecase
 
 from dita.config import CONFIG
 from dita.config import PATH
-from dita.discogs import release
 from dita.tag.core import eprint
 from dita.tag.core import input_with_prefill
-from dita.tag.core import tabulate_dict
 
 DISCOGS_CSV = PATH + "/" + CONFIG["discogs"]["database"]
 
@@ -42,15 +40,6 @@ PREFIX = "https://www.discogs.com"
 
 ALBUM_SUFFIXES = set(CONFIG["tag"]["album_suffixes_to_remove"].split(","))
 
-# # https://samgeo.codes/blog/python-types/
-# async def print_with_timer(fmt: str, interval: float = 0.1) -> None:
-#     start = time.time()
-#     while True:
-#         elapsed = time.time() - start
-#         print(fmt.format(elapsed=elapsed), end="")
-#         await asyncio.sleep(interval)
-
-
 # core functions {{{
 
 
@@ -63,7 +52,7 @@ def get_id_from_url(url: str) -> int:
         # some programs (e.g. tridactyl) quote their output
         .strip("'\"")
         .split("/")[-1]
-        .split("-")[0]
+        .split("-")[0],
     )
 
 
@@ -71,10 +60,11 @@ def d_get(
     query: str | int,
     all_pages: bool = False,
     verbose: bool = False,
+    timeout: int = 10,
 ) -> dict[str, Any]:
     """Send a GET request to discogs.
 
-    API_PREFIX should not be provided. If it is provided, it will be removed.
+    `API_PREFIX` should not be provided. If it is provided, it will be removed.
 
     Args:
         query: to be specified in the form "/<searchtype>s/{query}" -- note the
@@ -83,6 +73,7 @@ def d_get(
 
     Returns:
         dict: [TODO:description]
+
     """
     # TODO: if master id provided, warn, or redirect to discogs.release. however, this
     # false positive is difficult to catch because both dicts are structurally
@@ -110,26 +101,42 @@ def d_get(
         eprint(HEADERS)
 
     # requests.exceptions.ChunkedEncodingError
-    # requests.exceptions.ReadTimeout
     # requests.exceptions.MissingSchema (int.0)
-    response = requests.get(
-        query,
-        headers=HEADERS,
-        timeout=30,  # 10 too short for large artists
-    )
+    try:
+        response = requests.get(
+            query,
+            headers=HEADERS,
+            timeout=timeout,
+        )
+    except requests.exceptions.ReadTimeout:
+        # allow 1 timeout; this is usually ok
+        print("timed out; retrying...")
+        time.sleep(5)
+        response = requests.get(
+            query,
+            headers=HEADERS,
+            timeout=timeout,
+        )
 
     # pprint(dict(response.headers))
 
     # print(response)
     # print(response.text)
-    if verbose and response.status_code != 200:
-        eprint(response.status_code)
+    if response.status_code == 401:
+        eprint("Not authorised")
+        raise PermissionError
 
     if response.status_code == 429:
         eprint("Hit rate limit, retrying in 60 seconds...")
         time.sleep(60)
         return d_get(query)
 
+    # if verbose and response.status_code != 200:
+    #     eprint(response.status_code)
+
+    # assert response.status_code != 502, "Bad gateway; Discogs is probably down"
+    # assert response.status_code == 200, f"HTTP {response.status_code}"
+    # print(f"{response=}")
     json_d: dict = json.loads(response.text)
 
     # lprint(query, d)
@@ -152,7 +159,7 @@ def clean_artist(artist: str) -> str:
     Titlecase is always applied. Titlecase exceptions are not to be handled
     here.
     """
-
+    # print(artist)
     for patt, sub in {
         # order is important
         " = .+": "",  # remove translation
@@ -162,6 +169,7 @@ def clean_artist(artist: str) -> str:
         # r"\s+": " ",	# just strip
     }.items():
         artist = re.sub(patt, sub, artist)
+    # print(artist)
 
     # not sure whether to titlecase before or after merging "The"s
     artist = titlecase(artist)
@@ -169,7 +177,7 @@ def clean_artist(artist: str) -> str:
     # artist = tcase_with_exc(artist)
 
     words = artist.split(", ")
-    print(words)
+    # print(words)
     while "The" in words:
         i = words.index("The")
         if "the" not in words[i - 1]:  # may not be desirable
@@ -185,8 +193,7 @@ def clean_artist(artist: str) -> str:
 
 
 def web_url_to_api(url: str) -> str:
-    """
-       https://www.discogs.com/release/<id>-...
+    """https://www.discogs.com/release/<id>-...
     -> https://api.discogs.com/releases/<id>
     """
     assert ".com" in url
@@ -210,8 +217,7 @@ def replace_last(string: str, patt: str, replace: str) -> str:
 
 
 def api_url_to_web(url: str) -> str:
-    """
-       https://api.discogs.com/releases/<id>
+    """https://api.discogs.com/releases/<id>
     -> https://www.discogs.com/release/<id>
     """
     if "www." in url:
@@ -229,19 +235,11 @@ def parse_string_num_range(
     str_range: str,
     top_delim: str = ",",
 ) -> list[int]:
-    """[TODO:summary]
+    """Convert a numerical range represented as string (e.g. "3 to 7, 9 to 10")
+    to an actual numerical list.
 
-    Convert a numerical range represented as string (e.g. "3 to 7, 9 to 10") to
-    an actual numerical list.
-
-    Args:
-        str_range: [TODO:description]
-        top_delim: almost always ', ', may be ','
-
-    Returns:
-        [TODO:description]
+    Very error prone!
     """
-
     # i don't think there is any sane way to parse this monster:
     # https://www.discogs.com/release/12464502
     # 1-1~1-17,2-1,2-4,2-8~2-9,2-12~2-13,2-21
@@ -250,8 +248,7 @@ def parse_string_num_range(
     # 1-1 to 2-1
 
     def longest_common_prefix(strs: list[str]) -> str:
-        """
-        Identify longest common prefix; e.g. in a 2 disc situation, the dashes
+        """Identify longest common prefix; e.g. in a 2 disc situation, the dashes
         in '1-1 to 1-21' do not refer to ranges and should be removed.
         """
         prefix = ""
@@ -327,7 +324,7 @@ def parse_string_num_range(
 
 
 def duration_as_int(dur: str) -> int:
-    """Convert duration strings (as on Discogs) to integers"""
+    """Convert duration strings (as on Discogs) to integers."""
     # print(dur)
 
     # if not (dur := track.get("duration")):
@@ -350,40 +347,35 @@ def extract_track_artists(
     release: dict,
     require_composer_role: bool = False,
 ) -> list[str]:
-    """Extracts composer of a track
-
-    The extraartists field of the track metadata is checked
-
-    Args:
-        track: [TODO:description]
-
-    Returns:
-        str: [TODO:description]
+    """Extract composer of each track in the tracklist (via the `extraartists`
+    field).
     """
     # subtrack could inherit composer from track; but this is not trivial, and
     # i don't think i've ever needed it
 
-    artists = []
-    for track in release["tracklist"]:
-        if require_composer_role and "extraartists" in track:
-            # should only be 1
-            composer = ", ".join(
-                art["name"]
-                for art in track["extraartists"]
-                if art["role"].startswith("Compos")
-            )
-            if composer:
-                if "sub_tracks" in track:
-                    # https://www.discogs.com/release/10016898
-                    artists += [composer] * len(track["sub_tracks"])
-                else:
-                    artists.append(composer)
+    from dita.discogs.release import get_release_tracklist
 
-        # for non-classical splits
-        elif "artists" in track:
-            artists.append(track["artists"][0]["name"])
+    tracks = get_release_tracklist(release)
+    if "extraartists" in tracks and tracks.extraartists.notna().all():
+        artists = []
+        for _artists in tracks.extraartists:
+            if require_composer_role:
+                # should only be 1
+                composer = ", ".join(
+                    art["name"] for art in _artists if art["role"].startswith("Compos")
+                )
+                if composer:
+                    if "sub_tracks" in _artists:
+                        # https://www.discogs.com/release/10016898
+                        artists += [composer] * len(_artists["sub_tracks"])
+                    else:
+                        artists.append(composer)
+        return artists
 
-    return artists
+    if "artists" in tracks:
+        return tracks.artists.dropna().apply(lambda track: track[0]["name"]).to_list()
+
+    return []
 
 
 # }}}
@@ -397,8 +389,8 @@ def gather_genre_releases(genre: str) -> pd.DataFrame:
     release/masters, not artists.
 
     Possibly useful if you're really bored and willing to check out anything
-    from a genre. I haven't found a compelling use case for this."""
-
+    from a genre. I haven't found a compelling use case for this.
+    """
     i = 1
     max_pgs = 3
     rows = []
@@ -420,7 +412,7 @@ def gather_genre_releases(genre: str) -> pd.DataFrame:
     #     )
 
     while page := d_get(
-        f"/database/search?type=release&style={genre}&per_page=100&page={i}"
+        f"/database/search?type=release&style={genre}&per_page=100&page={i}",
         # f"/database/search?type=release&style={style}&year={year}&per_page=100"
     ):
         for result in page["results"]:
@@ -452,8 +444,7 @@ def get_list_releases(
     list_id: int,
     label: bool = False,
 ):
-    """currently only used for piping to external programs"""
-
+    """Currently only used for piping to external programs"""
     if label:
         url = f"/labels/{list_id}/releases"
         dic = {clean_artist(i["artist"]): i["title"] for i in d_get(url)["releases"]}
@@ -479,9 +470,11 @@ def get_list_releases(
         print(f"{artist}#{album}")
 
 
-# no API for creating lists...
-# def create_list():
-#     ...
+def parse_list():
+    get_list_releases(
+        get_id_from_url(sys.argv[1]),
+        label="/label/" in sys.argv[1],
+    )
 
 
 # }}}
@@ -491,22 +484,21 @@ def get_list_releases(
 # put year on hold for now, until i think of a better way to use it
 # used in release/pmp
 def search_with_relpath(relpath: str) -> dict:
-    """Expected path structure is: Artist/Album (YYYY). Returns primary release
-    of first search result. Draft releases are ignored."""
+    """Expected path structure is: artist/album (YYYY). Returns primary release
+    of first search result. Draft releases are ignored.
+    """
     artist, album = relpath.split("/")
     if album.endswith(")"):
         album = album[:-7]
     results = search_release(
         artist=artist.split("(")[-1],  # .replace("!", ""),  # transliteration
         album=album,  # assumes fixed 'album (date)' format
-        # album = re.sub(r" \(\d{4}\)$", "", album),
-        interactive=False,
         primary=True,
     )
-    if not results:
+    if results.empty:
         return {}
-    for res in results:
-        rel = d_get(res["id"])
+    for _, res in results.iterrows():
+        rel = d_get(res.id)
         if rel["status"] != "Draft":
             return rel
     return {}
@@ -516,14 +508,9 @@ def cli_search(
     artist: str,
     album: str,
 ) -> list[str]:
-    """
-
-    Wrapper for search_discogs_release, that allows user to edit search
+    """Invoke `search_discogs_release`, but allow user to edit search
     queries.
-
-    Returns list of release ids.
     """
-
     delim = " ::: "
     prefill = delim.join([artist, album])
     query = input_with_prefill("Search:\n", text=prefill)
@@ -553,7 +540,8 @@ def remove_words(
     ignore_order: bool = True,
 ) -> str:
     """Remove commonly encountered words that interfere with automated
-    searching. Word order can be discarded for extra conciseness."""
+    searching. Word order can be discarded for extra conciseness.
+    """
     if ignore_order:
         return " ".join(set(_str.lower().split()) - ALBUM_SUFFIXES)
 
@@ -567,25 +555,23 @@ def remove_words(
 def search_release(
     artist: str = "",
     album: str = "",
-    # interactive: bool = True,
-    primary: bool = False,
+    primary: bool = True,  # this is basically always True, and will be removed
 ) -> pd.DataFrame:
     """Return Discogs search results of an `artist`/`album` query.
 
     If either param is omitted, a general search is performed.
 
-    Only the first 10 are retrieved; I've never found a larger number to be
-    necessary.
+    If any result is a master release, the primary release for it will be
+    fetched.
+
+    Only the first 10 results are retrieved; in my experience, a larger number
+    has never really been necessary.
 
     If a match is not found in non-interactive mode, an empty dict is returned
-    immediately. In interactive mode, search queries are allowed to be edited
-    until a match is found (or until the search is aborted).
-
-    Not url encoding is apparently ok.
+    immediately.
 
     Note: search results are NOT the same as releases. Most importantly, search
     results do not contain tracklist/artists, while releases do.
-
     """
 
     def sanitize(artist: str, album: str):
@@ -617,18 +603,20 @@ def search_release(
 
     artist, album = sanitize(artist, album)
 
-    # Notes:
-    #
-    # - Searches only return results that match artist's "main" name; aliases
-    # may be rejected.
-    #
-    # - Releases are searched, rather than masters, as masters tend to produce
-    # false positives.
-    #
-    # - Getting an exact replica of a web result is not trivial (if at all
-    # possible), mainly because I don't know what sort method is used in the
-    # API. e.g.
-    # https://www.discogs.com/search/?q=this+is+it+1538&type=all&type=all
+    """
+    Notes:
+
+    - Searches only return results that match artist's "main" name; aliases
+    may be rejected.
+
+    - Releases are searched, rather than masters, as masters tend to produce
+    false positives.
+
+    - Getting an exact replica of a web result is not trivial (if at all
+    possible), mainly because I don't know what sort method is used in the
+    API. e.g.
+    https://www.discogs.com/search/?q=this+is+it+1538&type=all&type=all
+    """
 
     # anv should not be used over artist
 
@@ -642,50 +630,57 @@ def search_release(
         query = re.sub(r"[^\w -']", " ", query)
         search_url = f"/database/search?q={query}&type=release"
 
-    data = d_get(search_url)
+    try:
+        data = d_get(search_url)
+    except requests.exceptions.ConnectionError:
+        return pd.DataFrame()
+
+    if "results" not in data:
+        return pd.DataFrame()
 
     # if not interactive and not data.get("results"):
     #     eprint(f"No results: {artist} - {album}")
     #     return pd.DataFrame()
 
-    # # no real way to distinguish Draft releases without extra GET
-    # pprint(results)
-    # raise ValueError
+    eprint(len(data["results"]), "results found\n")
 
-    if primary:
+    results: pd.DataFrame = pd.DataFrame(data["results"])
+
+    if results.empty:
+        return results
+
+    results["want"] = results.community.apply(lambda d: d.get("want", 0))
+    results.sort_values(
+        by="want",
+        ascending=False,
+        inplace=True,
+        # key=lambda d: d.get("want", 0)
+    )
+
+    if len(results) > 1 and any(results.master_url):
         # results have information on master_url, but not primary release
-        # (master). kind of convoluted, up to 2 GETs required:
-        # master result (not release) -> primary url -> primary release
+        # (master), so 2 GETs required: master result (not release) -> primary
+        # url -> primary release
 
-        # if any(master := (r for r in results if r.get("master_url"))):
-        #     return [d_get(discogs.release.get_primary_url(next(master)))]
+        from dita.discogs.release import get_primary_url
 
-        for res in results:
-            # print(list(res))
-            if m_url := res.get("master_url"):
-                return [d_get(release.get_primary_url(d_get(m_url)))]
+        # note: if release is correct, but master isn't (e.g. vinyl), the
+        # correct release will be skipped! i don't have a good solution for
+        # this
+        rows = []
+        for _, row in results.drop_duplicates(subset=["master_url"]).iterrows():
+            if not row.master_url:
+                rows.append(row)
+            else:
+                p_url = get_primary_url(pd.Series(d_get(row.master_url)))
+                rows.append(pd.Series(d_get(p_url)))
+            if len(rows) >= max_results:
+                break
+        assert len({type(r) for r in rows}) == 1
+        results = pd.DataFrame(rows)
 
-    # TODO: -- advantages it would provide: easier col indexing, sort by year
-    # ascending
-
-    # print(results)
-    # raise ValueError
-
-    return results[:max_results]
+    return results.iloc[:max_results]
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        print(__doc__)
-
-    elif len(sys.argv) == 2:
-        if any(x in sys.argv[1] for x in ["/lists/", "/label/"]):
-            get_list_releases(
-                get_id_from_url(sys.argv[1]),
-                label="/label/" in sys.argv[1],
-            )
-
-    else:
-        print(__doc__)
-
-    sys.exit()
+    print(__doc__)

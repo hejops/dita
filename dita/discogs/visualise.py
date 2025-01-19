@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Visualise Discogs collection in streamlit as a grid of images
+"""Visualise Discogs collection in streamlit as a grid of images"""
 
-"""
 from random import randint
 from urllib.parse import quote
 

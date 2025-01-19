@@ -3,32 +3,32 @@
 fetch a csv/df, or read one.
 
 """
+
 import argparse
+import sqlite3
 import subprocess
+from collections.abc import Iterator
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from typing import Any
 from typing import Callable
-from typing import Iterator
 
 import flatdict
 import numpy as np
 import pandas as pd
 from pyfzf.pyfzf import FzfPrompt
-from tqdm import tqdm
 from unidecode import unidecode
 
 from dita.discogs.artist import Artist
 from dita.discogs.artist import get_artist_id
-from dita.discogs.core import clean_artist
-from dita.discogs.core import d_get
 from dita.discogs.core import DISCOGS_CSV
 from dita.discogs.core import USERNAME
+from dita.discogs.core import clean_artist
+from dita.discogs.core import d_get
 from dita.tag.core import cprint
 from dita.tag.core import eprint
 from dita.tag.core import lprint
-from dita.tag.core import open_url
 from dita.tag.core import select_from_list
 
 VAL_DELIM = ":"  # prop:val
@@ -78,7 +78,7 @@ class Collection:  # {{{
                 f"Collection: {len(self)} total",
                 f"Filtered: {len(self.filtered)}",
                 f"Filters applied: {self.filter_list}",
-            ]
+            ],
         )
 
     def to_dict(self):
@@ -87,16 +87,16 @@ class Collection:  # {{{
 
     def reset_filters(self):
         """Removes all user-defined filters, reverts df to its initial
-        state."""
+        state.
+        """
         self.filter_list = ()
         self.filtered = self.df.copy()
 
     def apply_filter(
         self,
-        # self.filtered: pd.DataFrame,
         prop: str,
         val: str,
-        # group_artist: bool = False,
+        disambiguate: bool = True,
     ) -> pd.DataFrame:
         """Apply a single filter to the df."""
 
@@ -141,9 +141,12 @@ class Collection:  # {{{
 
             if prop == "artist":
                 # https://pandas.pydata.org/docs/reference/api/pandas.Series.unique.html
-                if len(disamb := df.artist.unique()) > 1 and len(self.filter_list) == 1:
-                    name = select_from_list(disamb, "Disambiguation required")
-                    # print(df[df.artist == name])
+                if (
+                    len(matches := df.artist.unique()) > 1
+                    and len(self.filter_list) == 1
+                    and disambiguate
+                ):
+                    name = select_from_list(matches, "Disambiguation required")
                     df = df[df.artist == name]
 
             elif prop == "title":
@@ -156,18 +159,11 @@ class Collection:  # {{{
                         # "title": lambda x: x[0],
                         "title": lambda x: list(x)[0],
                         # "r": lambda x: x[0],  # a neat hack
-                    }
+                    },
                 )
                 print(df)
 
-            # else:
-            #     df = df[matches]
-
             return df
-
-        # if prop == "genre" and val[-1] == "!":
-        #     group_artist = True
-        #     val = val.removesuffix("!")
 
         if prop == "r":
             if int(val) > 2:
@@ -200,20 +196,23 @@ class Collection:  # {{{
 
     def filter(
         self,
-        filters: str = "",
+        filters: str,  # = "",
         sort: bool = True,
+        disambiguate: bool = True,
     ):
-        """Parses filters to be sequentially applied to an offline collection.
-        Filters are to be passed as strings in the form `<key>:<value>`, which
-        will be stored. If `<value>` is left blank, user input will be required.
-        Special prefixes are allowed.
+        """Parse filters to be sequentially applied to an offline collection.
 
-        The actual applying of filters is done by `apply_filter`.
+        Filters are to be passed as strings in the form `<key>:<value>`.
+        Special suffixes are allowed (see examples). The actual applying of
+        filters is done by `apply_filter`.
+
+        If `<value>` is left blank, or if `<key>` is artist and more than one
+        match is returned, user input will be required.
 
         If a filter clears the selection, the initial state can be restored
         with `reset_filters`.
 
-        Sorting is done by default. `title` is parsed as regex.
+        Sorting is done by default. `title` is always parsed as regex.
 
         Examples:
         ```
@@ -226,8 +225,8 @@ class Collection:  # {{{
                             warning: discards release information!)
             title:Goldberg Variations (groups releases by id)
         ```
-        """
 
+        """
         for filt in filters.split(FILT_DELIM):
             if VAL_DELIM not in filt:
                 eprint(f"Skipping invalid filter '{filt}'")
@@ -266,10 +265,9 @@ class Collection:  # {{{
             # eprint(key + VAL_DELIM + val)
 
             self.filtered = self.apply_filter(
-                # self.filtered,
                 key,
                 val.rstrip("!@"),
-                # group_artist,
+                disambiguate,
             )
 
         if {"artist", "title"}.issubset({f[0] for f in self.filter_list}):
@@ -292,7 +290,10 @@ class Collection:  # {{{
         if sort or any(filt[1][-1] == "@" for filt in self.filter_list):
             self.sort()
 
-        if any(filt[1][-1] == "!" for filt in self.filter_list):
+        if any(
+            filt[1].endswith("!") and filt[0] != "artist"  # edge case: !T.O.O.H!
+            for filt in self.filter_list
+        ):
             self.filtered = group_collection_by_artist(
                 self.filtered,
                 metric=mean_plus,
@@ -345,13 +346,18 @@ class Collection:  # {{{
 
 def dump_collection_to_csv():
     """Fetch all pages of a user's collection and write to csv"""
+    coll = pd.DataFrame(
+        # # note: tqdm is kinda goofy with generators
+        # tqdm(get_collection_releases())
+        get_collection_releases(),
+    ).sort_values("date_added")
 
-    # note: tqdm is kinda goofy with generators
-    (
-        pd.DataFrame(tqdm(get_collection_releases()))
-        .sort_values("date_added")
-        .to_csv(DISCOGS_CSV)
-    )
+    coll.to_csv(DISCOGS_CSV)
+
+    db = DISCOGS_CSV.replace(".csv", ".db")
+    conn = sqlite3.connect(db)
+    coll.to_sql("collection", conn, if_exists="replace")
+    print("Wrote", db)
 
 
 def get_wantlist_releases() -> pd.DataFrame:
@@ -385,9 +391,7 @@ def get_collection_releases(
     all_fields: bool = False,
     wantlist: bool = False,
 ) -> Iterator[dict[str, Any]]:
-    """
-
-    Scrape all pages of a user's Discogs collection (the API does not support
+    """Scrape all pages of a user's Discogs collection (the API does not support
     full collection export). Note: while sort order used is unknown,
     chronological order can be achieved via the 'instance_id' or 'date_added'
     fields.
@@ -398,8 +402,8 @@ def get_collection_releases(
     Args:
         all_fields: flatten nested fields (delimiter = '.')
         wantlist: get wantlist instead
-    """
 
+    """
     if wantlist:
         query_type = "wants"
     else:
@@ -464,6 +468,11 @@ def get_collection_releases(
 
 
 def mean_plus(ints: list[int]) -> float:
+    """Taking the mean over all ratings tends to produce an undesirable (and
+    extremely strong) bias towards artists with few rated releases, even more
+    so for median. This helps to combat that bias by applying a "bonus" of up
+    to 4% per rated release.
+    """
     mean = np.mean(ints)
     for i in ints:
         mult = 1 + ((i - 1) / 100)
@@ -476,15 +485,11 @@ def top_n_sum(
     num: float = 3,
     strict: bool = True,
 ) -> int:
-    """
-    Custom metric to retrieve 'overall rating' of an artist. An artist must
-    have at least one 5 rating, otherwise it is removed automatically.
+    """Custom metric to retrieve 'overall rating' of an artist. If `strict` is
+    `True`, an artist must have at least one 5 rating, otherwise it is removed
+    automatically.
 
-    The sum of the top <n> ratings is then returned (maximum = n * 5).
-
-    Taking the mean over all ratings tends to produce an undesirable (and
-    extremely strong) bias towards artists with few rated releases, even more
-    so for median.
+    The sum of the top `num` ratings is then returned (maximum = n * 5).
     """
     if artist_ratings.to_list().count(5) >= num:
         return int(5 * num)
@@ -536,8 +541,10 @@ def group_collection_by_artist(
 
     Returns:
         df, with columns `[groupby, 'r']` added
+
     """
     # clean first, otherwise groupby will be performed incorrectly
+    assert "artist" in df.columns
     df.artist = df.artist.apply(clean_artist)
 
     if groupby == "label":
@@ -553,9 +560,10 @@ def group_collection_by_artist(
     return (
         df[met]  # get the subset
         .groupby(groupby, as_index=False)["r"]
-        .apply(metric)
-        # keep cols (better to keep than drop)
-        [[groupby, "r"]]
+        .apply(metric)[
+            # keep cols (better to keep than drop)
+            [groupby, "r"]
+        ]
         .sort_values(["r", groupby], ascending=[False, True])
         .set_index("artist")
     )
@@ -567,12 +575,11 @@ def cprint_df(df):
     length of the escaped string exceeds `r`, but `df.to_markdown` can be used to
     circumvent this.
     """
-
     mean_rating = round(df.r.mean(), 2)
 
     df.r = df.r.apply(cprint, _print=False)
 
-    df_str = df.reset_index(drop=True).to_markdown()
+    df_str = df.to_markdown()
 
     _, width = subprocess.check_output(["stty", "size"]).split()
 
@@ -631,11 +638,21 @@ def parse_args():
         default="top_n_sum",
         required=False,
     )
+    top.add_argument(
+        "--perc",
+        type=int,
+        default=PERCENTILE,
+        required=False,
+    )
 
     return parser.parse_args()
 
 
 def filter_collection(args: argparse.Namespace):
+    # import os
+    # import shlex
+    #
+    # os.system(f"notify-send {shlex.quote(str(args))}")
     df: pd.DataFrame = pd.read_csv(
         DISCOGS_CSV,
         index_col=0,
@@ -644,9 +661,12 @@ def filter_collection(args: argparse.Namespace):
     )
 
     coll = Collection(df)
-    coll.filter(args.filters)
+    coll.filter(
+        args.filters,
+        disambiguate=args.format == "pretty",
+    )
 
-    if args.format in ["csv", "json"]:
+    if args.format != "pretty":  # in ["csv", "json"]:
         print(getattr(coll.filtered, f"to_{args.format}")())
         return
 
@@ -658,10 +678,9 @@ def filter_collection(args: argparse.Namespace):
     sel = input()
     if sel:
         print(d_get(coll.filtered.iloc[int(sel)].id)["uri"])
-    else:
-        # assumes filter was artist:XXX
-        if coll.filter_list[0][0] == "artist":
-            Artist(get_artist_id(coll.filter_list[0][1])).rate_all()
+    # assumes filter was artist:XXX
+    elif coll.filter_list[0][0] == "artist":
+        Artist(get_artist_id(coll.filter_list[0][1])).rate_all()
 
 
 def main():
@@ -678,7 +697,7 @@ def main():
             pd.read_csv(DISCOGS_CSV),
             metric=METRICS.get(args.metric),
         )
-        top_df = filter_by_percentile(top_df, thresh=PERCENTILE)
+        top_df = filter_by_percentile(top_df, thresh=args.perc)
         print(top_df, len(top_df))
 
     # elif len(sys.argv) == 2:

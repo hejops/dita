@@ -1,7 +1,9 @@
 """Parse user's config file"""
+
 import configparser
 import os
 import sys
+from collections.abc import Iterator
 
 PATH = os.path.dirname(__file__)
 CONFIG_FILE = f"{PATH}/config"
@@ -42,22 +44,29 @@ STAGED_FILE = PATH + "/" + CONFIG["tag"]["staged"]  # list of successfully tagge
 
 
 # boilerplate file loads
-def load_titlecase_exceptions() -> dict[str, str]:
+def load_titlecase_exceptions() -> Iterator[tuple[str, str]]:
     try:
         with open(
             PATH + "/" + CONFIG["tag"]["titlecase_exceptions"],
             "r+",
             encoding="utf-8",
         ) as f:
-            return {l.strip().lower(): l.strip() for l in f.readlines()}
+            # return {l.strip().lower(): l.strip() for l in f.readlines()}
+            for line in f.readlines():
+                yield line.strip().lower(), line.strip()
     except FileNotFoundError:
-        return {}
+        pass
+        # return {}
+
+
+TITLECASE_EXCEPTIONS = load_titlecase_exceptions()
 
 
 def load_staged_dirs() -> list[str]:
+    # assert os.path.isfile(STAGED_FILE)
+    # print("loading", STAGED_FILE)
     try:
         with open(STAGED_FILE, "r+", encoding="utf-8") as f:
-            # could be set[str]
             return f.read().splitlines()
     except FileNotFoundError:
         return []

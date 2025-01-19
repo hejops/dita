@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
-"""Module for moving tagged files to library
+"""Module for moving tagged files to library."""
 
-"""
-# from pprint import pprint
 import os
 import shlex
 import shutil
-import sys
+from pathlib import Path
 
 import pandas as pd
 from pyfzf.pyfzf import FzfPrompt
@@ -14,19 +11,22 @@ from pyfzf.pyfzf import FzfPrompt
 import dita.tag.fix
 from dita.config import QUEUE_FILE
 from dita.config import SOURCE_DIR
+from dita.config import STAGED_FILE
 from dita.config import TARGET_DIR
 from dita.tag.core import file_to_tags
 from dita.tag.core import front_int
-from dita.tag.core import get_audio_files
 from dita.tag.core import get_files_tags
 from dita.tag.core import is_ascii
 from dita.tag.core import select_from_list
 from dita.tag.genre import GENRES
 from dita.tag.genre import save_db
+from dita.tag.io import get_audio_files
+from dita.tag.tagger import REQUIRED_FIELDS
+from dita.tag.tagger import edit_tag
+from dita.tag.tagger import tags_to_columns
 
-# from mutagen.easyid3 import EasyID3
-
-assert TARGET_DIR and SOURCE_DIR
+assert TARGET_DIR
+assert SOURCE_DIR
 
 MPV_DIR = f"{os.environ.get('XDG_CONFIG_HOME')}/mpv"
 
@@ -49,7 +49,8 @@ TAG_FIELDS = [
 
 class Mover:  # {{{
     """Mover object. Moves all tagged files in source directory to
-    destination, after performing checks."""
+    destination, after performing checks.
+    """
 
     def __init__(
         self,
@@ -88,8 +89,11 @@ class Mover:  # {{{
         )
         self.regen_tag_columns()
 
+        # corner case
+        for f in REQUIRED_FIELDS:
+            assert f in self.targets.columns, f"{f} column missing in all files!"
         self.targets.dropna(
-            subset=list(dita.tag.fix.REQUIRED_FIELDS),
+            subset=list(REQUIRED_FIELDS),
             how="any",
             inplace=True,
         )
@@ -104,8 +108,9 @@ class Mover:  # {{{
 
     def validate(self):
         """A relatively 'safe' operation; files that don't fulfill the
-        necessary conditions will simply be ignored, for subsequent review"""
-
+        necessary conditions will simply be ignored, for subsequent review
+        """
+        self.targets: pd.DataFrame
         if self.targets.empty:
             return
 
@@ -132,6 +137,11 @@ class Mover:  # {{{
 
         # 1. determine full abspath
         self.targets["dest"] = self.targets.apply(self.get_dest_filename, axis=1)
+
+        # this is a poor workaround
+        self.targets.tracknumber = self.targets.tracknumber.apply(
+            lambda t: t.split("/")[0],
+        )
 
         if not (hundred := self.targets[self.targets.tracknumber.str.len() > 2]).empty:
             # if dir has >99 files, all files must have tracknumber of len 3
@@ -166,8 +176,8 @@ class Mover:  # {{{
 
         assert all(self.targets.dest), set(
             self.targets[self.targets.dest == ""].src.apply(
-                lambda x: os.path.dirname(x)
-            )
+                lambda x: os.path.dirname(x),
+            ),
         )
         # self.targets.dropna(subset="dest", inplace=True)
 
@@ -179,7 +189,7 @@ class Mover:  # {{{
         move: bool = True,
         # preview: bool = True,
     ) -> None:
-        """Move files to their appropriate location in the destination
+        """Move files to their appropriate location in the destination.
 
         Full paths are required for both source and destination. Destination (from
         tags_to_path) must be determined in advance; it is not done here.
@@ -189,11 +199,7 @@ class Mover:  # {{{
         Args:
             src_file: [TODO:description]
 
-        Returns:
-            str: new path. empty if nothing is to be done (i.e. source path ==
-            destination).
         """
-
         if self.targets.empty:
             return
 
@@ -202,15 +208,18 @@ class Mover:  # {{{
         if self.targets.empty:
             return
 
-        if self.src_dir == SOURCE_DIR:
+        if not PROFILE and self.src_dir == SOURCE_DIR:
             self.dry_run()
             print("\nTarget:", TARGET_DIR)
             input("Press enter to continue")
 
         for _, row in self.targets.iterrows():
-            dest_dir = os.path.dirname(row.dest)
+            dest_dir = Path(row.dest).parent
 
-            os.makedirs(dest_dir, exist_ok=True)  # mkdir -p
+            try:
+                Path(dest_dir).mkdir(parents=True, exist_ok=True)
+            except OSError:
+                continue
 
             # https://python.omics.wiki/file-operations/file-commands/os-rename-vs-shutil-move
             # copy2() attempts to preserve file metadata as well
@@ -229,36 +238,16 @@ class Mover:  # {{{
 
             print(row.dest)
 
-        if not move:
-            raise ValueError
+        # if not move:
+        #     raise ValueError
 
         if self.links:
             for src, dests in self.links.items():
                 for dest in dests:
                     relative_symlink(src, dest)
 
-        self.cleanup()
-
-    # @staticmethod
-    # def guess_date_from_dirname(
-    #     file: str,
-    #     _tags: EasyID3,
-    # ):
-    #     _dir = os.path.dirname(file)
-    #     guess = re.search(r"(19|20)\d{2}", os.path.basename(_dir))
-    #     # list(guess)
-    #     if guess and year_is_valid(int(guess.group(0))):
-    #         date = guess.group(0)
-    #         print("Guessing date:", date)
-    #     else:
-    #         open_url(
-    #             "https://duckduckgo.com/?t=ffab&ia=web&q=",
-    #             [_tags["artist"][0], _tags["album"][0]],
-    #         )
-    #         date = input("Date: ")
-    #     files = get_audio_files(_dir)
-    #     for _tags in get_files_tags(files):
-    #         set_tag(_tags, "date", date)
+        if not PROFILE:
+            self.cleanup()
 
     @staticmethod
     def get_dest_filename(row: pd.Series) -> str:
@@ -269,7 +258,7 @@ class Mover:  # {{{
         """
 
         def sanitize_filename(parts: list[str]) -> list[str]:
-            """Remove characters illegal in NTFS filenames"""
+            """Remove characters illegal in NTFS filenames."""
             path = []
             for part in parts:
                 # catch blank values
@@ -279,8 +268,6 @@ class Mover:  # {{{
                         part = part.replace(char, "'")
                     elif char in NTFS_ILLEGALS:
                         part = part.replace(char, "-")
-                # print(fname)
-                # sys.exit()
                 path.append(part.strip())
             return path
 
@@ -302,8 +289,7 @@ class Mover:  # {{{
         # return row
 
     def queue_new_albums(self) -> None:
-        """Add new relpaths to library and queue files"""
-
+        """Add new relpaths to library and queue files."""
         if self.targets.empty:
             return
 
@@ -336,19 +322,25 @@ class Mover:  # {{{
 
             new_queues.add(relpath)
 
-        with open(QUEUE_FILE, "a+", encoding="utf-8") as f:
-            f.writelines(x + "\n" for x in new_queues)
-
-        with open(f"{MPV_DIR}/library", "a+", encoding="utf-8") as f:
+        # this definitely works
+        with Path(f"{MPV_DIR}/library").open(mode="a+", encoding="utf-8") as f:
             f.writelines(d.removeprefix(TARGET_DIR + "/") + "\n" for d in paths)
 
+        # but this may not
+        with Path(QUEUE_FILE).open(mode="a+", encoding="utf-8") as f:
+            # f.writelines(["\n"])  # else last line gets merged with first new line
+            f.writelines(x + "\n" for x in new_queues)
+            # f.writelines("\n" + x for x in new_queues)
+
         print(len(added_artists), "dirs queued")
+        os.system(f"tail {QUEUE_FILE}")
 
     def cleanup(self) -> None:
-        """Remove empty directories, and directories with size <5 MB. Since no
-        destructive actions are taken, it can always be called at the end of
-        .move()."""
+        """Remove empty directories, and directories with size <5 MB.
 
+        Since no destructive actions are taken, it can always be called at the
+        end of `move`.
+        """
         # https://stackoverflow.com/a/12480543
         # because of how os.walk works, root is not a "fixed" str, but instead
         # gets increasingly deeper
@@ -358,8 +350,7 @@ class Mover:  # {{{
             # print(files)
             if (
                 # root != base and
-                not dirs
-                and not files
+                not dirs and not files
             ):
                 # print("empty", root)
                 # print("Removed", root)
@@ -375,12 +366,12 @@ class Mover:  # {{{
         if not os.path.exists(self.src_dir):
             return
 
-        if self.src_dir == SOURCE_DIR:
+        if self.src_dir == SOURCE_DIR and os.path.isdir(self.src_dir):
             os.system(f"ncdu '{self.src_dir}'")
             # remove images etc
             os.system(
                 rf"find '{SOURCE_DIR}' -type f -regextype gnu-awk "
-                r"-iregex '.*\.(jpg|png|tif|cue|pdf|log|txt)$' -exec rm -v {} \;"
+                r"-iregex '.*\.(jpg|png|tif|cue|pdf|log|txt)$' -exec rm -v {} \;",
             )
             os.system(rf"find '{SOURCE_DIR}' -type d -empty -delete")
         else:
@@ -394,23 +385,27 @@ class Mover:  # {{{
             os.rmdir(parent)
 
     def regen_tag_columns(self) -> None:
+        """Copied from fix.Tagger; should be refactored"""
         # print(self.targets.columns)
-        right = self.targets.tags.apply(pd.Series)
+        right = self.targets.tags.apply(dict).apply(pd.Series)
         self.targets = self.targets[self.targets.columns.difference(right.columns)]
-        self.targets = self.targets.merge(right, left_index=True, right_index=True).map(
-            dita.tag.fix.tags_to_columns
-        )
+        self.targets = self.targets.merge(
+            right,
+            left_index=True,
+            right_index=True,
+        ).map(tags_to_columns)
 
-    def dry_run(self):
+    def dry_run(self) -> None:
         """Perform a dry-run of the move, then show the resulting relpaths.
-        Selecting a relpath calls Tagger.menu() on the source dir.
+
+        Selecting a relpath calls `Tagger.menu()` on the source dir.
         """
 
         def preview() -> pd.Series:  # [str, list[str]]
             print("Grouping...\n")
             reverse = self.targets.copy()
             reverse["dest"] = reverse.dest.apply(
-                lambda x: os.path.dirname(x.removeprefix(TARGET_DIR + "/"))
+                lambda x: os.path.dirname(x.removeprefix(TARGET_DIR + "/")),
             )
             group: pd.Series = reverse.groupby("dest")["src"].apply(list)
             return group
@@ -421,7 +416,7 @@ class Mover:  # {{{
         group = preview()
         while dest_dir_to_fix := FzfPrompt().prompt(group.index.to_list(), "--reverse"):
             files_to_fix: list[str] = group.loc[dest_dir_to_fix][0]
-            mask = self.targets.src.isin(files_to_fix)
+            _mask = self.targets.src.isin(files_to_fix)
             src_dir_to_fix = os.path.dirname(files_to_fix[0])
 
             print(self.targets[self.targets.src == files_to_fix[0]].iloc[0].tags)
@@ -459,16 +454,19 @@ def relative_symlink(
     src: str,
     dest: str,
 ):
-    """Creates relative symlink, does nothing if target already exists.
+    """Create relative symlink, does nothing if target already exists.
+
     Assuming the following directory structure:
+    ```
                      <root>/<artistB>/<album>/<linkA>
         -> points to <root>/<artistA>/<album>/<fileA>
-
+    ```
     The relative symlink simply traverses 2 directories up to reach the
     root:
+    ```
                       ../../<artistB>/<album>/<linkA>
         -> points to <root>/<artistA>/<album>/<fileA>
-
+    ```
     """
     try:
         os.symlink(
@@ -487,22 +485,21 @@ def generate_symlinks(
     # allow_overwrite: bool = True,
 ) -> dict[str, set[str]]:  # best return type for testing
     """Determine symlink 'network' of V/A albums based solely on fullpaths.
+
     Requires unique album names.
 
     Consider the following example:
-
+    ```
         "{root}/Artist1/Album/01"
         "{root}/Artist1/Album/02"
         "{root}/Artist1/Album/03"
         "{root}/Artist2/Album/04"
         "{root}/Artist2/Album/05"
         "{root}/Artist2/Album/06"
-
+    ```
     This function ensures that all six files are contained in both paths to
     Album.
-
     """
-
     # could probably use something from itertools (combinations?)
     # assume list is received after a groupby operation
     # self.va.groupby('album').src
@@ -542,32 +539,13 @@ def generate_symlinks(
 
         # for 2 va albums with same name (?)
         if len({os.path.basename(f).split()[0] for f in album_files}) != len(
-            album_files
+            album_files,
         ):
             raise ValueError(
                 f"Multiple albums named '{album}' detected. "
-                "Manual resolution is required."
+                "Manual resolution is required.",
             )
             # return []
-
-        # # none of these dest files should exist yet
-        # if not all(os.path.exists(f) for f in album_files):
-        #     print("Malformed (pre-link):", album)
-        #     pprint({f: os.path.exists(f) for f in album_files})
-        #     raise ValueError
-
-        # if not allow_overwrite and any(os.path.exists(f) for f in album_files):
-        #     input("Press enter to remove...")
-        #     for file in album_files:
-        #         if os.path.isfile(file):
-        #             os.remove(file)
-        #             print("removed", file)
-
-        #     return False
-        # return True
-        # raise ValueError
-        # print(123890)
-        # continue
 
         # artists of album
         album_artists = {f.split("/")[-3] for f in album_files}
@@ -597,10 +575,6 @@ def generate_symlinks(
                 links[file].add(dest)
                 # print(src, dest)
 
-        # pprint(album_links)
-        # if (len(album_artists) - 1) * len(album_files) != len(album_links):
-        #     return []
-
         # links += album_links
 
         print("OK:", album)
@@ -610,30 +584,14 @@ def generate_symlinks(
 
     print(len(files), "files +", len(links), "links")
 
-    # if (len(artists) - len(albums)) * len(files) // len(albums) != len(links):
-    #     print("asdjasasd")
-    #     return []
-
     return links
-
-    # from collections import OrderedDict
-    # return OrderedDict(sorted(links.items()))
-
-    # dirs = self.va.src.apply(os.path.dirname).to_list()
 
 
 def truncate_filename(
-    # row: pd.Series,
     dest_filename: str,
     max_artist_len: int = 160,  # https://www.discogs.com/master/2152342
     maxlen: int = 255,
 ) -> str:
-    """It is not entirely unclear what the maximum filename length allowed by
-    NTFS is (257?, 260?), so 255 should be a safe value. Although this involves
-    re-splitting paths (which were constructed from tags), this is done for
-    unit testing.
-    """
-
     # dest_filename = src_filename  # .dest
     excess = len(dest_filename) - maxlen
 
@@ -692,8 +650,8 @@ def truncate_filename(
 
 def multi_move(dirs: list[str]):
     """Given a list of dirs already in library, edit artist or genre tag, then
-    move."""
-
+    move.
+    """
     assert all(d.startswith(TARGET_DIR) for d in dirs)
 
     # fix dirs that were not symlinked together
@@ -713,17 +671,14 @@ def multi_move(dirs: list[str]):
 
     field: str = select_from_list(["artist", "genre"], "Field")
     new_val = input("Value: ")
-    dita.tag.fix.edit_tag(tracks, field=field, new_val=new_val)
+    edit_tag(tracks, field=field, new_val=new_val)
 
     if field == "artist":
         for _dir in dirs:
             Mover(_dir).move()
 
 
-def main(
-    # move: bool,
-    # path,
-):
+def main():
     mvr = Mover(SOURCE_DIR)
     mvr.move()
     mvr.queue_new_albums()
@@ -731,13 +686,13 @@ def main(
     if "genre" in mvr.targets:
         save_db(mvr.targets[["artist", "genre"]].set_index("artist"))
 
-    if os.path.exists(dita.tag.fix.STAGED_FILE):
-        os.remove(dita.tag.fix.STAGED_FILE)
+    if Path(STAGED_FILE).exists():
+        Path(STAGED_FILE).unlink()
 
     print("Done")
 
-    sys.exit(0)
 
+PROFILE = False
 
 if __name__ == "__main__":
     main()

@@ -1,14 +1,4 @@
-# from json.decoder import JSONDecodeError
-
 import dita.discogs.core as dc
-
-
-# get_primary_url()
-# # TODO: reject if primary newer than master?
-# # https://www.discogs.com/release/1843975
-# # TODO: primary has DVD
-# # https://www.discogs.com/release/827219
-
 
 # def test_non_ascii_composer():
 #     # https://www.discogs.com/release/6367642
@@ -16,6 +6,19 @@ import dita.discogs.core as dc
 #
 #     # can't test, need user input
 #     get_discogs_tags(dc.d_get(6367642))
+
+
+def test_search_general():
+    art = "Jan Dismas Zelenka, Ars rediviva"
+    alb = "Benda, Zelenka & Finger: Sonatas"
+
+    res = dc.search_release(
+        album=f"{art} {alb}",
+        primary=True,
+    )
+    assert not res.empty
+    # print(res)
+    # assert False
 
 
 def test_search_release():
@@ -42,11 +45,9 @@ def test_search_release():
         res = dc.search_release(
             artist,
             album,
-            interactive=False,
             primary=True,
         )
-        # print(res)
-        assert res, artist
+        assert not res.empty, artist
 
     for artist, album in {
         "": "Speak of the Sea",
@@ -59,8 +60,21 @@ def test_search_release():
         res = dc.search_release(
             artist,
             album,
-            interactive=False,
         )
+
+
+def test_search_release_ambiguous():
+    # there is currently no good way to ambiguous searches, so this test does
+    # nothing meaningful
+    for artist, album in {
+        "dana": "dana",
+    }.items():
+        res = dc.search_release(
+            artist,
+            album,
+        )
+        assert len(res) == 10
+        assert res.iloc[0].id == 5157320
 
 
 def test_search_with_relpath():
@@ -80,9 +94,6 @@ def test_search_with_relpath():
         "Homeskin/Subverse Siphoning of Suburbia (2021)",
     ]:
         release = dc.search_with_relpath(rp)
-        # print(release)
-        # assert False
-        # assert release["id"] == 810275
         assert "artists" in release
         assert release["status"] != "Draft"
 
@@ -100,6 +111,8 @@ def test_blocked_from_sale():
 
 
 # def test_timeout():
+#     # from json.decoder import JSONDecodeError
+#
 #     for a in [
 #         18956,  # Stevie Wonder, 543 (3.7k incl appearances)
 #         95546,  # Mozart, 42k
@@ -108,7 +121,7 @@ def test_blocked_from_sale():
 #             for per in [100, 10, 500]:
 #                 # try:
 #                 assert dc.d_get(
-#                     f"/artists/{a}/releases?sort=year&per_page={per}&page={pg}"
+#                     f"/artists/{a}/releases?sort=year&per_page={per}&page={pg}",
 #                 )
 #                 # print(p, per, "OK")
 #                 # except JSONDecodeError:

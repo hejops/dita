@@ -13,7 +13,7 @@ def test_truncate():
         "/short/path/01 file.xyz": "/short/path/01.xyz",
         "/short/path123456789/01 file.xyz": "/short/path123.../01.xyz",
         "/short/path123456789 (1234)/01 file.xyz": "/short/path1234... (1234)/01.xyz",
-        "/short/path123456789 (1234)/01 file.xyz": "/short/... (1234)/01.xyz",
+        # "/short/path123456789 (1234)/01 file.xyz": "/short/... (1234)/01.xyz",
         "/short/path123456789 (1234)/100 file.xyz": "/short/... (1234)/100.xyz",
     }.items():
         assert truncate_filename(k, maxlen=len(v)) == v
@@ -23,7 +23,7 @@ def test_truncate():
             "/aaa/bbbbb/cccccc/dddddddd/music/John Dwyer, Ryan Sawyer, Peter Kerlin,"
             " Brad Caulkins, Kyp Malone, Tom Dolas, Marcos Rodriguez, Andres Renteria,"
             " Ben Boye, Laena Myers-Ionita, Joce Soubrian/Moon-Drenched (2021)/05 Get"
-            " Thee To The Rookery.mp3"
+            " Thee To The Rookery.mp3",
         )
         == "/aaa/bbbbb/cccccc/dddddddd/music/John Dwyer, Ryan Sawyer, Peter Kerlin,"
         " Brad Caulkins, Kyp Malone, Tom Dolas, Marcos Rodriguez, Andres Renteria,"
@@ -158,7 +158,6 @@ def test_va():
         f"{test_root}/Artist1/Album1/01.mp3",
         f"{test_root}/Artist1/Album1/02.mp3",
         f"{test_root}/Artist2/Album1/03.mp3",
-        #
         f"{test_root}/Artist3/Album2/01.mp3",
         f"{test_root}/Artist4/Album2/02.mp3",
         f"{test_root}/Artist4/Album2/03.mp3",
@@ -184,7 +183,6 @@ def test_va():
         f"{test_root}/Artist1/AlbumA/01 a.mp3",
         f"{test_root}/Artist1/AlbumA/02 b.mp3",
         f"{test_root}/Artist2/AlbumA/03 c.mp3",
-        #
         f"{test_root}/Artist3/AlbumA/01 d.mp3",
         f"{test_root}/Artist4/AlbumA/02 e.mp3",
         f"{test_root}/Artist4/AlbumA/03 f.mp3",
@@ -201,7 +199,6 @@ def test_va():
         f"{test_root}/Artist1/AlbumB/02 b.mp3",
         f"{test_root}/Artist2/AlbumB/03 c.mp3",
         f"{test_root}/Artist2/AlbumB/04 d.mp3",
-        #
         f"{test_root}/Artist3/AlbumB/01 e.mp3",
         f"{test_root}/Artist4/AlbumB/02 f.mp3",
     ]

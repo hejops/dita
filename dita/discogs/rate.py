@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Module for rating Discogs releases on the command-line.
+"""Module for rating Discogs releases on the command-line."""
 
-"""
 # from random import choice
 # import shlex
 import html
@@ -73,9 +72,6 @@ def is_rateable(
             release
         exclude: 1 excludes compilations, 2 excludes compilations and singles
         require_date: [TODO:description]
-
-    Returns:
-        bool: True
     """
     # print(release)
     # raise ValueError
@@ -107,7 +103,6 @@ def is_rateable(
 
         if set(format_names).intersection(IGNORED_FORMATS):
             # lprint(release["title"], "formats (partial)", format_names)
-            # if format_names[0] in IGNORED_FORMATS:
             return False
 
     # full release
@@ -121,11 +116,10 @@ def is_rateable(
             # lprint(release["title"], "formats (full)", format_names)
             return False
 
-        # desc = {f.get("descriptions")[0] for f in release["formats"]}
-        # if desc.intersection(IGNORED_FORMATS):
-
         if (
             "descriptions" in release["formats"][0]
+            and release["formats"][0]["descriptions"] is not None
+            and len(release["formats"][0]["descriptions"]) > 0  # cringe
             and release["formats"][0]["descriptions"][0] in IGNORED_FORMATS
         ) or (
             release["formats"][0]["name"] == "File"
@@ -136,16 +130,12 @@ def is_rateable(
         # lprint("formats (desc)", desc)
         for fmt in release.get("formats"):
             if fmt.get("descriptions") and set(fmt.get("descriptions")).intersection(
-                IGNORED_FORMATS
+                IGNORED_FORMATS,
             ):
-                # lprint(f)
-                # if set(f.get("descriptions")).intersection(IGNORED_FORMATS):
+                lprint(fmt)
                 return False
 
-    if require_date and "year" not in release:
-        return False
-
-    return True
+    return not (require_date and "year" not in release)
 
 
 def rate_release(
@@ -153,7 +143,7 @@ def rate_release(
     rating: str = "",
     rerate: bool = False,
 ) -> int:
-    """Rate discogs release on a scale of 0-5
+    """Rate discogs release on a scale of 0-5.
 
     3 API calls are required:
         1. GET current rating of album, if any
@@ -194,12 +184,6 @@ def rate_release(
         if root != TARGET_DIR:
             print(root)
 
-    # lprint(
-    #     release,
-    #     list(release),
-    # )
-    # raise ValueError
-
     if "id" not in release:
         return 0
 
@@ -216,10 +200,9 @@ def rate_release(
         sep=" :: ",
     )
 
+    # put artist/album in clipboard
     os.system("echo " + shuote(art, album) + " | xclip")
 
-    # os.system(f"< $HOME/.config/mpv/library grep -i '{artist}/{album}'")
-    # os.system(f"checklib '{art}' '{album}'")
     checklib(art, album)
 
     print(release["uri"].split("-")[0])
@@ -241,7 +224,10 @@ def rate_release(
             return int(current_rating)
 
     if not rating:
-        rating = input("Rating: ")
+        try:
+            rating = input("Rating: ")
+        except KeyboardInterrupt:
+            return -1
 
         if rating == "x":
             # sys.exit(0)
@@ -272,6 +258,7 @@ def rate_release(
         return int(current_rating)
 
     # add to collection -- must be done last to prevent duplicate additions
+    # TODO: if in collection, return early
     # (post is not idempotent)
     # https://www.discogs.com/developers#page:user-collection,header:user-collection-add-to-collection-folder
     response = json.loads(

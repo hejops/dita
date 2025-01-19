@@ -3,6 +3,7 @@
 recordings of a classical work.
 
 """
+
 # from urllib.parse import quote_plus
 # import re
 import math
@@ -68,7 +69,7 @@ def ytsearch(
     with yt_dlp.YoutubeDL() as ydl:
         result = ydl.extract_info(query, download=False)
 
-    # st.write(result)
+    st.write(result)
 
     if "entries" in result and (entries := result.get("entries")):
         # for i in range(num_results):

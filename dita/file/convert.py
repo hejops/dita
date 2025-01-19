@@ -2,6 +2,7 @@
 """Module for converting audio files to MP3."""
 
 import argparse
+import multiprocessing
 import os
 import re
 import shlex
@@ -21,7 +22,6 @@ from mutagen.mp4 import MP4StreamInfoError
 from mutagen.oggopus import OggOpus
 from tinytag import TinyTag
 from tinytag.tinytag import TinyTagException
-from tqdm import tqdm
 
 from dita.config import CONFIG, SOURCE_DIR
 from dita.tag.core import fill_tracknum
@@ -221,11 +221,13 @@ class Converter:
         print(len(self.files), "files to convert")
         # lprint(self.files)
         # raise ValueError
-        for file in tqdm(self.files):
-            # for i, file in enumerate(self.files):
-            # if file not in log:
-            print(file)
-            convert_file(file)
+
+        with multiprocessing.Pool(2) as pool:
+            _ = pool.map(convert_file, self.files)
+
+        # for file in tqdm(self.files):
+        #     print(file)
+        #     convert_file(file)
 
 
 def get_merge_dest(file: str) -> str:
@@ -254,7 +256,7 @@ def execute_chain(cmd_chain: list[list[str]]):
     processes = []
     # outs = []
     for cmd in cmd_chain:
-        print(" ".join(cmd))
+        # print(" ".join(cmd))
         if processes:
             # use stdout of last finished process as stdin
             p_stdin = processes[-1].stdout
@@ -343,6 +345,7 @@ def convert_file(file: str):
 
         return {}
 
+    # print(file)
     ext = file.rsplit(".", maxsplit=1)[-1]
     # print(ext)
 

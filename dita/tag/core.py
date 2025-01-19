@@ -1,9 +1,5 @@
-"""Core utilities for working with MP3 tags"""
-# from glob import escape
-# from pprint import pprint
-# import configparser
-# import shutil
-# import unicodedata
+"""Core utilities for working with MP3 tags."""
+
 import itertools
 import logging
 import os
@@ -13,33 +9,26 @@ import shlex
 import string
 import sys
 from datetime import datetime
-from glob import glob
 from math import isnan
 from pprint import pformat
 from typing import Any
-from typing import Iterator
-from typing import Sequence
+from collections.abc import Iterator
+from collections.abc import Sequence
 from urllib.parse import quote
 
-import filetype
 import pandas as pd
-import psutil
-from mutagen import File
+from mutagen._file import File
 from mutagen.easyid3 import EasyID3
-from mutagen.id3 import ID3NoHeaderError
+from mutagen.id3._util import ID3NoHeaderError
 from termcolor import colored
 from titlecase import titlecase
 
-from dita.config import load_titlecase_exceptions
+from dita.config import TITLECASE_EXCEPTIONS
 
-# from tabulate import tabulate
-
-# from mutagen.easyid3 import ID3
-
-TITLECASE_EXCEPTIONS = load_titlecase_exceptions()
+TITLECASE_EXCEPTIONS = dict(TITLECASE_EXCEPTIONS)
 
 
-def align_lists(left: list, right: list):
+def align_lists(left: list, right: list):  # {{{
     """Primitive, unoptimised sequence alignment algorithm. Requires exact
     match (so casefold etc should be performed beforehand). If an item is found
     in sequence A but not in sequence B, this is reflected as None in sequence
@@ -131,211 +120,8 @@ def align_lists(left: list, right: list):
     assert len(left) == len(right)
 
     return left, right
-    # return pd.DataFrame({"left": left, "right": right})
+    # return pd.DataFrame({"left": left, "right": right})}}}
 
-
-# file operations {{{
-
-
-def file_in_use(fpath: str) -> bool:
-    """Mimic tail --pid=<pid> -f /dev/null"""
-    # ~ 0.3 s
-    # https://stackoverflow.com/a/44615315
-    for proc in psutil.process_iter():
-        try:
-            for item in proc.open_files():
-                if fpath == item.path:
-                    return True
-        except psutil.AccessDenied:
-            pass
-    return False
-
-
-def shallow_recurse(
-    parent: str,
-    maxdepth: int = 2,
-) -> list[str]:
-    """Breadth-first search algorithm with upper bound on depth. Returns list
-    of full paths."""
-    if maxdepth == 0:
-        return [parent]
-
-    # children = [
-    #     full_d for d in os.scandir(parent) if os.path.isdir(full_d := f"{parent}/{d}")
-    # ]
-    # print(children[0])
-
-    # children = [
-    #     full_d for d in os.listdir(parent) if os.path.isdir(full_d := f"{parent}/{d}")
-    # ]
-
-    children = [d.path for d in os.scandir(parent) if d.is_dir()]
-
-    while maxdepth > 1:
-        grandch = [shallow_recurse(chi, maxdepth - 1) for chi in children]
-        grandch = list(itertools.chain.from_iterable(grandch))
-        return grandch
-
-    return children
-
-
-def glob_full(
-    root_dir: str,
-    recursive: bool = True,
-    dirs_only: bool = True,
-    first_match: str = "",
-    mindepth: int = 1,
-) -> list[str]:
-    """Attempts to mimic the general functionality of GNU find, with the
-    exception of -maxdepth.
-
-    Methods like os.listdir are annoying to use because root_dir is not
-    included (and has to be rejoined to all results). This takes care of that
-    problem.
-
-    TODO: os.scandir
-
-    Returns deepest directories by default (to avoid duplication). For files,
-    use get_audio_files() instead.
-
-    Args:
-        root_dir: [TODO:description]
-        recursive: [TODO:description]
-        dirs_only: [TODO:description]
-        first_match: [TODO:description]
-        mindepth: [TODO:description]
-
-    Returns:
-        [TODO:description]
-    """
-    # basically just listdir
-    if not recursive:
-        return [os.path.join(root_dir, x) for x in os.listdir(root_dir)]
-
-    # # don't think this does anything
-    # if mindepth == 0:
-    #     return [root_dir]
-
-    items = glob(
-        "**",
-        root_dir=root_dir,
-        recursive=True,
-    )
-
-    if first_match:
-        gen = (x for x in items if x.endswith(first_match))
-        try:
-            return [os.path.join(root_dir, next(gen))]
-        except StopIteration:
-            return []
-
-    if mindepth > 1:
-        # depth 0 is root
-        # depth 1 has 0 slashes
-        # lprint(items)
-        items = [x for x in items if x.count("/") >= mindepth]
-        items = [os.path.join(root_dir, x) for x in items]
-        return items
-
-    items = [os.path.join(root_dir, x) for x in items]
-
-    # x = "printanières"
-    # print([c + unicodedata.category(c) for c in x])
-    # raise Exception
-
-    if dirs_only:
-        # deepest only
-        new_list = []
-        for item in reversed(sorted(items)):
-            # a/b/c
-            # a/b
-            # a
-            if any(item in x for x in new_list):
-                continue
-            if not os.path.isdir(item):
-                continue
-            new_list.append(item)
-        return new_list
-        # return [x for x in items if os.path.isdir(x)]
-
-    return sorted(
-        [
-            x
-            for x in items
-            # if os.path.isfile(x)
-            # allow dead symlinks (will be cleared by is_audio_file)
-            if not os.path.isdir(x)
-            # a rather absurd corner case caused by 2 files containing a word
-            # which was encoded differently but displayed the same. "Güld'ner"
-            # is the 'invalid' encoding, as it contains an invisible
-            # Nonspacing_Mark -- https://www.compart.com/en/unicode/category/Mn
-            #
-            # however, because some files will naturally have such chars, they
-            # should not automatically be ruled out.
-            # and not any(unicodedata.category(c) == "Mn" for c in x)
-        ]
-    )
-
-
-def is_audio_file(
-    file: str,
-    extensions: list[str],
-) -> bool:
-    """Check that <file>:
-        1. is a file
-        2. has correct filename extension (string)
-        3. has correct file magic numbers (binary)
-
-    As there is no stdlib module for #3, an external dependency is required
-    (https://github.com/h2non/filetype.py). This is faster than the similar
-    python-magic, but can yield false negatives (e.g. ape).
-    """
-
-    # m4a ext = mp4 filetype
-    if "m4a" in extensions:
-        extensions.append("mp4")
-
-    ext = file.split(".")[-1].lower()
-
-    if ext == "ape":
-        return True
-
-    if os.path.isfile(file) and ext in extensions:
-        # if the byte check fails, expect to see it caught by any media player.
-        # it is not our responsibility to fix this
-        if (
-            filetype.guess_extension(file)
-            and filetype.guess_extension(file) in extensions
-        ):
-            return True
-        print("bad file header")
-        return False
-
-    if os.path.islink(file) and not os.path.isfile(file):
-        eprint("Removing broken symlink:", file)
-        os.unlink(file)
-        return False
-
-    return False
-
-
-def get_audio_files(src_dir: str) -> list[str]:
-    """Wrapper for glob_full + is_audio_file. Returns a sorted list of audio
-    files in a directory (non-recursive by default, i.e. top-level). Hidden
-    files (starting with '.') are omitted.
-
-
-
-    """
-    files = glob_full(
-        src_dir,
-        recursive=True,
-        dirs_only=False,
-    )
-    return sorted(f for f in files if is_audio_file(f, ["mp3"]))
-
-
-# }}}
 
 # tag operations {{{
 
@@ -353,7 +139,7 @@ def set_tag(
     field: str,
     new_val: str,
 ) -> None:
-    """set_tag.
+    """
     For SRP and explicitness, this function only operates on a single
     track/file. Tags are saved.
 
@@ -362,11 +148,8 @@ def set_tag(
         field (str): field to be written, e.g. "artist"
         new_val (str): new value to be written
 
-    Returns:
-        EasyID3:
     """
-
-    field: str = FIELD_ALIASES.get(field, field)
+    field: str = FIELD_ALIASES.get(field) or field
 
     # squeeze whitespace
     new_val = " ".join(new_val.split())
@@ -393,12 +176,11 @@ def save_tags(tags) -> None:
 
 
 def file_to_tags(file: str) -> EasyID3 | None:
-    """
-    Parse ID3 tags of an mp3 file using EasyID3. The file must have valid tag
-    headers; no error handling is performed here. EasyID3 is used for its
-    convenient dict-like structure.
-    """
+    """Parse ID3 tags of an mp3 file using `EasyID3`.
 
+    The file must have valid tag headers; no error handling is performed here.
+    `EasyID3` is used for its convenient dict-like structure.
+    """
     # alternative: https://github.com/devsnd/tinytag
     # https://mutagen.readthedocs.io/en/latest/api/oggopus.html
     # https://mutagen.readthedocs.io/en/latest/user/gettingstarted.html
@@ -411,19 +193,8 @@ def file_to_tags(file: str) -> EasyID3 | None:
     #     # tags: OggOpus = OggOpus(file)
     #     # save_tags(tags)
 
-    # if ID3(file, v2_version=3).__dict__["_version"] == (2, 4, 0):
-    #     return None
-
     try:
-        # tags = ID3(file, v2_version=3)
-        # if tags.__dict__["_version"] == (2, 4, 0):
-        #     print("dfsaodas")
-        #     # neither of these version-setting methods work -- according to `file`
-        #     # tags.save(v2_version=3)
-        #     tags.update_to_v23()
-        #     assert tags.__dict__["_version"] != (2, 4, 0)
-
-        tags = EasyID3(file)  # 5.5 ms
+        tags = EasyID3(file)
     except ID3NoHeaderError:
         return None
 
@@ -442,6 +213,7 @@ def add_headers(
 ):
     for file in files:
         tags = File(file, easy=True)
+        assert tags
         if add_empty_fields:
             for field in ["genre", "artist", "album"]:
                 tags[field] = ""
@@ -451,54 +223,32 @@ def add_headers(
         save_tags(tags)
 
 
-def front_int(s: str) -> int:
-    """Get frontmost int of a string"""
-    x = ""
-    for char in s:
-        if char.isnumeric():
-            x += char
-        else:
-            break
-    if x == "":
-        return 0
-    return x
-    # return int(x)
-
-
 def get_files_tags(
     audio_files: list[str],
     sort_tracknum: bool = True,
 ) -> list[EasyID3]:
-    """Gathers all files in a directory non-recursively (for recursive calls,
-    call get_audio_files(dir) directly), checks if files are sorted properly,
-    and generates EasyID3 tags for each file.
+    """Gather all files in a directory non-recursively.
+
+    Also check if files are sorted properly, and generate EasyID3 tags for each
+    file.
+
+    For recursive calls, call `get_audio_files(dir)` directly
 
     Side-effect: 'tracknumber' field is also set.
-
-    Args:
-        dir (str): dir
-
-    Returns:
-        list of EasyID3 tags
     """
-
     eprint(f"Processing {len(audio_files)} files...")
 
     # files passed are assumed to be sorted by fname; this is not necessarily
     # correct if >99 files
 
-    # tags_list = [file_to_tags(f) for f in audio_files]
+    try:
+        tags = [file_to_tags(f) for f in audio_files]
+    except ID3NoHeaderError:
+        add_headers(audio_files)
+        tags = [file_to_tags(f) for f in audio_files]
 
-    tags_list = []
-    for f in audio_files:
-        # print(f)
-        try:
-            tags_list.append(file_to_tags(f))
-        except ID3NoHeaderError:
-            # pass
-            # shutil.move(f, f + ".xxx")
-            add_headers(audio_files)
-            tags_list = [file_to_tags(f) for f in audio_files]
+    assert all(tags)
+    tags: list[EasyID3]
 
     # Determine how to sort the files
     # priority: discnumber -> file prefix -> tracknumber
@@ -506,16 +256,8 @@ def get_files_tags(
     # by default, if tags have tracknumber field, they are assumed to be sorted
     # properly; this overrides fname sorting
 
-    # if max(t.get("tracknumber") for t in tags_list) > 1:
-    #     print(
-    #         audio_files,
-    #         tags_list,
-    #     )
-    #     raise Exception
-
     if (
-        len({t.get("album")[0] for t in tags_list if t.get("album")})
-        > 1
+        len({t.get("album")[0] for t in tags if t.get("album")}) > 1
         #
         # or ...
     ):
@@ -528,14 +270,14 @@ def get_files_tags(
             # try disc num first
             def sortkey():
                 # could probably do some int hack like 1*1000 + 2
-                if all(t.get("discnumber") for t in tags_list):
+                if all(t.get("discnumber") for t in tags):
                     eprint("sort discnum")
                     return lambda x: 1000 * int(front_int(x["discnumber"][0])) + int(
                         front_int(x["tracknumber"][0])
                     )
                 return lambda x: int(front_int(x["tracknumber"][0]))
 
-            tags_list = sorted(tags_list, key=sortkey())
+            tags = sorted(tags, key=sortkey())
 
         except KeyError:
             pass
@@ -543,13 +285,10 @@ def get_files_tags(
     # print(tags_list)
     # raise ValueError
 
-    for i, tags in enumerate(tags_list):
-        # print(i, tags)
-        set_tag(tags, "tracknumber", fill_tracknum(i + 1))
-        # print(i, tags)
-        # raise ValueError
+    for i, tag in enumerate(tags):
+        set_tag(tag, "tracknumber", fill_tracknum(i + 1))
 
-    return tags_list
+    return tags
 
 
 def year_is_valid(year: int) -> bool:
@@ -563,6 +302,19 @@ def year_is_valid(year: int) -> bool:
 # }}}
 
 # string operations {{{
+
+
+def front_int(s: str) -> int:
+    """Get frontmost int of a string"""
+    x = ""
+    for char in s:
+        if char.isnumeric():
+            x += char
+        else:
+            break
+    if x == "":
+        return 0
+    return int(x)
 
 
 def fill_tracknum(
@@ -592,9 +344,9 @@ def extract_year(text: str) -> list[int]:
     return list(frozenset([int(x) for x in re.findall(r"(?:19|20)\d{2}", text)]))
 
 
-def shuote(*words: str):
-    """Wrapper for shlex.quote on a list (hacky). only used about twice"""
-    words = [x if not x.startswith("http") else x for x in words]
+def shuote(*args: str):
+    """Hacky wrapper for `shlex.quote`, only used once (!)"""
+    words = [x if not x.startswith("http") else x for x in args]
     return shlex.quote(" ".join(words)).replace("#", "")
 
 
@@ -676,13 +428,8 @@ def select_from_list(
     behaviour that must be accounted for.
 
     Args:
-        items: [TODO:description]
-        msg: [TODO:description]
-        sep: [TODO:description]
-        allow_null: [TODO:description]
 
     Returns:
-        [TODO:description]
     """
 
     if len(items) == 1:
@@ -742,6 +489,36 @@ def input_with_prefill(prompt: str, text: str) -> str:
     return result
 
 
+def get_clipboard() -> str:
+    """Retrieve clipboard contents, attempts to detect if a Discogs id was
+    copied (from the 'Copy Release Code' button). Note: if you use tridactyl,
+    yank doesn't actually send the selection to xclip.
+    """
+    import subprocess as sp
+
+    # this is very hacky
+    with sp.Popen(
+        "xclip -o clipboard".split(),
+        stdout=sp.PIPE,
+    ) as clip:
+        if not clip.stdout:
+            eprint("could not access clipboard")
+            return ""
+
+        clip_str = clip.stdout.read().decode("utf-8")
+
+        if clip_str.startswith("[r"):
+            return clip_str[2:-1]
+
+        if clip_str.startswith("[m"):
+            from dita.discogs.release import get_primary_url
+            from dita.discogs.core import d_get
+
+            return get_primary_url(d_get(f"/masters/{clip_str[2:-1]}")).split("/")[-1]
+
+        return ""
+
+
 # }}}
 
 # printing {{{
@@ -776,24 +553,24 @@ def cprint(
     _print: bool = True,
 ) -> str:
     """Print with color"""
-    if not rating or isnan(rating) or not 1 <= rating <= 5:
+    if not rating or isnan(rating):  # or not 1 <= rating <= 5:
         return str(rating)
 
     if color:
         c_rating = colored(str(rating), color)
 
     else:
+        # note: these colors may be overridden by your tty colorscheme
         colors = {
             1: "red",
             2: "green",
-            3: "blue",
+            3: "magenta",  # blue
             4: "cyan",
-            5: "magenta",
+            5: "yellow",
         }
+        if int(rating) not in colors:
+            return str(rating)
         c_rating = colored(str(rating), colors[int(rating)])
-
-    # else:
-    #     raise NotImplementedError
 
     if _print:
         eprint(c_rating)
@@ -806,25 +583,18 @@ def tabulate_dict(
     columns: list[str] | None = None,
     max_rows: int = 50,
     truncate: bool = False,
-    showindex: bool = False,
+    # showindex: bool = False,
 ) -> str:
     """Addresses some shortcomings of pandas' default df reprs (namely,
     ensuring strings are left-aligned).
 
-    Args:
-        dict_or_df: [TODO:description]
-        columns: [TODO:description]
-        max_rows: [TODO:description]
-        truncate: [TODO:description]
-        showindex: [TODO:description]
-
-    Returns:
-        [TODO:description]
     """
+    # i used to use `tabulate` because right-aligned strings from pandas'
+    # default printer are annoying to read, but at some point i removed it
+    # without explanation
+
     # left-aligning columns is not worth the effort lol
     # https://pandas.pydata.org/pandas-docs/stable/user_guide/options.html#available-options
-    # pd.set_option("display.colheader_justify", "left")
-    # pd.set_option("text-align", "left")
     # print(df)
 
     # truncated = False
@@ -834,11 +604,10 @@ def tabulate_dict(
             df = dict_or_df.loc[:, columns]
         else:
             df = dict_or_df
+    elif columns:
+        df = pd.DataFrame(dict_or_df, columns=columns)
     else:
-        if columns:
-            df = pd.DataFrame(dict_or_df, columns=columns)
-        else:
-            df = pd.DataFrame(dict_or_df)
+        df = pd.DataFrame(dict_or_df)
 
     if df.empty:
         return ""

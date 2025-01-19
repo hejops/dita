@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
-"""Module for parsing Discogs artist objects. To prevent namespace collision
-when importing this module, prefer the variable name art instead of artist.
+"""Module for parsing Discogs artist objects.
 
+To prevent namespace collision when importing this module, prefer the variable
+name art instead of artist.
 """
+
 import os
 import sys
 import time
 from random import choice
 from typing import Any
+from typing import NoReturn
 
 import pandas as pd
-import readchar
 
 import dita.discogs.core as dc
 from dita.discogs import rate
+from dita.discogs.release import is_classical
+from dita.discogs.release import release_as_str
 from dita.tag.core import eprint
 from dita.tag.core import is_ascii
 from dita.tag.core import select_from_list
-
-# from dita.tag.core import open_url
-# from dita.tag.core import tcase_with_exc
-# from tag.core import tabulate_dict
-# import dita.discogs.release
 
 
 class Artist:  # {{{
@@ -35,6 +34,7 @@ class Artist:  # {{{
     Args:
         artist_id: numeric string
         per_page: releases per page (sent in GET request)
+
     """
 
     # Metallica 3.3k / Mozart 43k
@@ -53,7 +53,7 @@ class Artist:  # {{{
     def __init__(
         self,
         a_id: int,
-    ):
+    ) -> None:
         # static, will never change
         self.a_id = a_id
 
@@ -66,8 +66,8 @@ class Artist:  # {{{
         self.total = results["pagination"]["items"]
         # print(self.total)
 
-        def random_page(_max: int) -> dict:
-            self.page = choice(range(1, _max))
+        def random_page(max_pg: int) -> dict:
+            self.page = choice(range(1, max_pg))
             results = self.get_releases()
             if "Main" in pd.DataFrame(results["releases"]).role.to_list():
                 return results
@@ -99,8 +99,8 @@ class Artist:  # {{{
         # self.current_rel = self.releases[self.position]
 
     def get_name(self) -> str:
-        """Getting the artist name requires a dedicated get
-        ('/artists/{artist_id}'). To avoid this, 'artist' field is simply
+        """Getting the artist name requires a dedicated `GET
+        /artists/{artist_id}` call. To avoid this, 'artist' field is simply
         parsed to get the most common artist name.
         """
         # https://stackoverflow.com/a/52039106
@@ -110,8 +110,8 @@ class Artist:  # {{{
         # return len(self.releases)
         return self.total
 
-    def __str__(self):
-        return f"{self.get_name()} [{self.position+1}/{self.total}]"
+    def __str__(self) -> str:
+        return f"{self.get_name()} [{self.position + 1}/{self.total}]"
 
     # def filter_data_quality(self):
     #     ...
@@ -126,8 +126,8 @@ class Artist:  # {{{
     def filter_from_df(
         self,
         local_df,
-    ):
-        """Removes rows whose ids are found in <local_df>."""
+    ) -> None:
+        """Remove rows whose ids are found in `local_df`."""
         rated = local_df.id  # .to_list()
         before = len(self.releases)
 
@@ -136,19 +136,16 @@ class Artist:  # {{{
         else:
             self.releases = self.releases[~self.releases.id.isin(rated)]
 
-        if self.releases.empty:
-            print(f"All {before} releases rated")
-        elif before != len(self.releases):
-            print(before - len(self.releases), "rated items were removed")
+        if self.releases.empty or before != len(self.releases):
+            pass
 
     def filter_by_format(
         self,
         exclude: int = 1,
-    ):
+    ) -> None:
         """Typically removes compilations. If exclude=2, removes singles as
         well.
         """
-
         if self.releases.empty:
             return
 
@@ -165,12 +162,13 @@ class Artist:  # {{{
             self.releases = self.releases[self.releases.rateable.eq(True)]
 
             if self.releases.empty:
-                print("No releases left! (format)")
+                pass
 
     def filter_by_role(
         self,
-        roles: list[str],
-    ):
+        # roles: list[str],
+        *roles: str,
+    ) -> None:
         """Typical roles are (in order of decreasing importance):
 
         "Main", "Producer", "Appearance", "TrackAppearance", "Co-producer",
@@ -180,7 +178,6 @@ class Artist:  # {{{
 
         Roles like 'Visual' are only in full release (requires extra get).
         """
-
         if self.releases.empty:
             return
 
@@ -189,7 +186,7 @@ class Artist:  # {{{
             self.releases = self.releases[self.releases.role.isin(roles)]
 
             if self.releases.empty:
-                print("No releases left! (role)")
+                pass
 
     # def jump_to_pos(self):
     #     ...
@@ -203,33 +200,31 @@ class Artist:  # {{{
 
     def get_releases(self) -> dict[str, Any]:
         """Fetch artist releases, starting on page 1 by default."""
-        results = dc.d_get(
+        return dc.d_get(
             (
                 f"/artists/{self.a_id}/releases?sort=year"
                 f"&per_page={self.per_page}&page={self.page}"
             ),
-            verbose=True,
+            # verbose=True,
+            timeout=60,  # required for very large artists (e.g. Bach)
         )
-        return results
 
-    def get_credits(self):
+    def get_credits(self) -> list[tuple]:
         """Very inefficient (need GET for every single release), not well
-        tested"""
-        self.filter_by_role(["Appearance", "TrackAppearance"])
+        tested.
+        """
+        self.filter_by_role("Appearance", "TrackAppearance")
 
         # for col in self.releases:
         #     print(self.releases[col])
 
         rids = self.releases[["type", "main_release", "id"]]
-        print(rids)
+        # print(rids)
 
         tracks = []
-        for _, row in rids.iterrows():
+        for _, row in rids.iterrows():  # [:10]:
             # note: this clunky field logic is also used in rate_all
-            if row.type == "master":
-                _id = int(row.main_release)
-            else:
-                _id = row.id
+            _id = int(row.main_release) if row.type == "master" else row.id
 
             rel = dc.d_get(_id)
 
@@ -239,20 +234,27 @@ class Artist:  # {{{
                 # lprint(track)
                 artist_ids = [x["id"] for x in track["extraartists"]]
                 if int(self.a_id) in artist_ids:
-                    tracks.append(
-                        {
-                            "artist": dc.clean_artist(rel["artists_sort"]),
-                            "title": track["title"],
-                        }
+                    # d = {
+                    #     "artist": dc.clean_artist(rel["artists_sort"]),
+                    #     "title": track["title"],
+                    # }
+                    d = (
+                        dc.clean_artist(rel["artists_sort"]),
+                        track["title"],
                     )
+                    tracks.append(d)
             time.sleep(2)
 
-        return pd.DataFrame(tracks)
+            # if i >= 10:
+            #     break
 
-    def add_next_page(self):
-        """Append next n releases to the current list of releases, where n =
-        items per page. Position is unchanged. Does nothing if all releases
-        have been fetched.
+        return tracks
+
+    def add_next_page(self) -> None:
+        """Append next n releases to the current list of releases.
+
+        Where n = items per page. The current position is unchanged. Does
+        nothing if all releases have been fetched.
         """
         if len(self.releases) < self.total:
             self.page += 1
@@ -266,8 +268,8 @@ class Artist:  # {{{
     #         self.releases = self.get_releases()["releases"] + self.releases
     #         # self.position -= self.per_page
 
-    def navigate(self, mod: int):
-        """Increment/decrement position in current list of releases by <mod>."""
+    def navigate(self, mod: int) -> None:
+        """Increment/decrement position in current list of releases by `mod`."""
         # TODO: 1st check position vs len(self), then vs len(self.releases)
         # print(self.position, mod, len(self))
         # raise ValueError
@@ -282,11 +284,10 @@ class Artist:  # {{{
         #     # print(self.position, mod)
         #     # raise ValueError
 
-    def show_release(self):
-        """Format artist, album, and tracklist (df), cache to df"""
+    def show_release(self) -> NoReturn:
+        """Format artist, album, and tracklist (df), cache to df."""
         os.system("clear")
-        print(self.releases)
-        rel_str = dc.release_as_str(self.releases[self.position]["id"])
+        rel_str = release_as_str(self.releases[self.position]["id"])
         # https://stackoverflow.com/a/45746617
         # iloc is faster than loc
         # self.releases.loc[self.releases[self.position], "rel_str"] = rel_str
@@ -294,26 +295,25 @@ class Artist:  # {{{
             self.position,
             self.releases.get_loc("rel_str"),
         ] = rel_str
-        print(self.releases.rel_str)
         raise ValueError
 
-    def browse(self):
-        """Basic CLI interface"""
-        self.show_release()
-        while action := readchar.readchar():
-            match action:
-                case "j":
-                    self.navigate(1)
-                    os.system("clear")
-                    self.show_release()
-                case "k":
-                    self.navigate(-1)
-                case "r":
-                    ...  # rate
-                case "R":
-                    ...  # random page
-                case "x":
-                    sys.exit()
+    # def browse(self) -> None:
+    #     """Basic CLI interface."""
+    #     self.show_release()
+    #     while action := readchar.readchar():
+    #         match action:
+    #             case "j":
+    #                 self.navigate(1)
+    #                 os.system("clear")
+    #                 self.show_release()
+    #             case "k":
+    #                 self.navigate(-1)
+    #             case "r":
+    #                 ...  # rate
+    #             case "R":
+    #                 ...  # random page
+    #             case "x":
+    #                 sys.exit()
 
     def rate_all(
         self,
@@ -323,29 +323,29 @@ class Artist:  # {{{
         """Rate Discogs releases of an artist, in chronological order.
 
         Filtering is done in two stages. The first stage does not require any
-        GET requests, and uses all the information available in the releases
+        `GET` requests, and uses all the information available in the releases
         listed under the artist -- these entries have less information than an
-        actual release (for instance, the 'formats' field is not available).
+        actual release (for instance, the `formats` field is not available).
 
-        The second stage of filtering then uses a GET request to obtain data
+        The second stage of filtering then uses a `GET` request to obtain data
         for the release.
 
         Args:
             releases: releases listed under artist (not full releases)
             rerate: [TODO:description]
             skip_wanted: [TODO:description]
-        """
 
-        self.filter_by_role(["Main"])
+        """
+        self.filter_by_role("Main")
         # print(len(self))
         self.filter_by_format()
         # print(len(self))
 
         if self.releases.empty:
-            print("df was emptied")
             return
 
-        # generally for Label only?
+        # note: it is entirely possible for master release to have a non-zero
+        # year, while its main_release has a zero year
         self.releases = self.releases[self.releases.year != 0]
 
         if not rerate:
@@ -386,6 +386,13 @@ class Artist:  # {{{
 
             rel = dc.d_get(str(_id))
 
+            # somewhat arbitrary; what we generally want to do is check number
+            # of composers, and skip if >1. this would require parsing tracklist
+            if is_classical(rel) and (
+                len(rel["artists"]) > 5  # or any(a["anv"] for a in rel["artists"])
+            ):
+                continue
+
             if require_correct_data and rel["data_quality"] != "Correct":
                 continue
 
@@ -401,25 +408,25 @@ class Artist:  # {{{
 
 
 class Label(Artist):
-    """Inherits most attributes and methods from Artist, except for
-    get_name()"""
+    """Inherits most attributes and methods from `Artist`, except for
+    `get_name`.
+    """
 
-    def __init__(self, l_id):
+    def __init__(self, l_id) -> None:
         # note: the attrib is still called a_id
         Artist.__init__(self, l_id)
 
     def get_releases(self) -> dict[str, Any]:
-        results = dc.d_get(
+        return dc.d_get(
             (
                 f"/labels/{self.a_id}/releases?sort=year"
                 f"&per_page={self.per_page}&page={self.page}"
             ),
             verbose=True,
         )
-        return results
 
     def get_name(self) -> str:
-        """the hack for Artist.get_name() doesn't work here"""
+        """The hack for Artist.get_name() doesn't work here."""
         return dc.d_get(str(self.releases.id[0]))["labels"][0]["name"]
 
 
@@ -436,7 +443,6 @@ def get_transliterations(rel: dict) -> dict[str, list[str]]:
 
     Warning: dict keys are lowercase
     """
-
     artists: list[dict] = rel["artists"]
     # print(artists_dict)
 
@@ -456,7 +462,7 @@ def get_transliterations(rel: dict) -> dict[str, list[str]]:
             transliterations[native.lower()] = [native]
             continue
 
-        art_info = dc.d_get(f"/artists/{str(art['id'])}")
+        art_info = dc.d_get(f"/artists/{art['id']!s}")
 
         if "namevariations" not in art_info:
             transliterations[native.lower()] = []
@@ -505,6 +511,7 @@ def get_artist_id(
 
     Returns:
         artist id
+
     """
 
     def get_id_and_title(data):
@@ -516,7 +523,7 @@ def get_artist_id(
 
     try:
         data = pd.DataFrame(dc.d_get(search_url, verbose=True)["results"])
-        print(data)
+        # print(data)
     except KeyError:
         eprint("Invalid search term:", artist_name)
         return 0
@@ -591,8 +598,14 @@ def get_artist_id(
     return select_from_list(
         get_id_and_title(data[data.id.isin(in_coll.id)]),
         "Artist id",
-    ).id.values[0]
+    ).id  # .values[0]
+
+
+def get_credits() -> None:
+    for _artist, _track in Artist(int(sys.argv[1])).get_credits():
+        pass
 
 
 if __name__ == "__main__":
-    print(get_artist_id(sys.argv[1]))
+    get_credits()
+    # print(get_artist_id(sys.argv[1]))

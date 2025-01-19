@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Module for reading/writing genre tags to MP3 files. The 'genre' tag receives
-special treatment because Discogs is largely unconcerned with defining specific
-genres. Last.fm is generally better for obtaining this information, but care
-must be taken with the data that is available there.
+"""
+
+Module for reading/writing genre tags to MP3 files. The 'genre' tag receives
+special treatment because it is somewhat subjective, and Discogs is largely
+unconcerned with defining specific genres. Last.fm is generally better for
+obtaining this information, but care must be taken with the data that is
+available there.
 
 """
-# from pprint import pprint
+
 import argparse
 import http.client as httplib
 import json
@@ -28,14 +31,30 @@ from dita.config import TARGET_DIR
 from dita.file.convert import glob_full
 from dita.tag.core import add_headers
 from dita.tag.core import file_to_tags
-from dita.tag.core import get_audio_files
 from dita.tag.core import select_from_list
 from dita.tag.core import set_tag
-from dita.tag.core import shallow_recurse
+from dita.tag.io import get_audio_files
+from dita.tag.io import shallow_recurse
 
 GENRES_FILE = PATH + "/" + CONFIG["tag"]["genres"]
 GENRE_SUFFIXES = CONFIG["tag"]["genre_suffixes_to_remove"].split(",")
 LASTFM_TOKEN = CONFIG["lastfm"]["token"]
+
+
+def have_internet() -> bool:
+    """Check if internet connection available (via Google DNS)"""
+    # https://stackoverflow.com/a/29854274
+    conn = httplib.HTTPSConnection("8.8.8.8", timeout=1)
+    try:
+        conn.request("HEAD", "/")
+        return True
+    except (KeyboardInterrupt, OSError):
+        return False
+    finally:
+        conn.close()
+
+
+# CONNECTED = have_internet()
 
 
 def dump_library_genres():
@@ -54,7 +73,7 @@ if os.path.isfile(GENRES_FILE):
         index_col="artist",
     )  # .drop_duplicates()
     # https://stackoverflow.com/a/34297689
-    GENRES_DF = GENRES_DF[~GENRES_DF.index.duplicated(keep="first")]
+    GENRES_DF: pd.DataFrame = GENRES_DF[~GENRES_DF.index.duplicated(keep="first")]
 else:
     if sys.__stdin__.isatty() and input(f"{GENRES_FILE} not found. Build?") == "y":
         dump_library_genres()
@@ -81,7 +100,7 @@ def fix_library_genres():
 def get_closest_string(text: str) -> list[str]:
     """Return string matches within a Levenshtein distance"""
 
-    genres = GENRES_DF[["genre"]].drop_duplicates().reset_index(drop=True)
+    genres: pd.DataFrame = GENRES_DF[["genre"]].drop_duplicates().reset_index(drop=True)
 
     # when input is short, use normal front-matching
     if len(text) < 5:
@@ -114,19 +133,6 @@ def completer(
     if len(options) > state:
         return options[state]
     return None
-
-
-def have_internet() -> bool:
-    """Check if internet connection available (via Google DNS)"""
-    # https://stackoverflow.com/a/29854274
-    conn = httplib.HTTPSConnection("8.8.8.8", timeout=1)
-    try:
-        conn.request("HEAD", "/")
-        return True
-    except KeyboardInterrupt:
-        return False
-    finally:
-        conn.close()
 
 
 def get_genre(file: str) -> str:
@@ -230,25 +236,13 @@ def prompt_genre(
     artist: str,
     curr_genre: str,
 ) -> None:
-    """[TODO:summary]
-
-    Retrieve tags from last.fm and ask for user input.
-
-    Args:
-        dir: [TODO:description]
-        tags_list: [TODO:description]
-        artist: [TODO:description]
-        curr_genre: [TODO:description]
-
-    Returns:
-        [TODO:description]
-    """
+    """Retrieve tags from last.fm and ask for user input."""
 
     print()
     if curr_genre in GENRES:
         print(f"[Current tag: {curr_genre}]")
 
-    if CONNECTED and LASTFM_TOKEN:
+    if have_internet() and LASTFM_TOKEN:
         lastfm_genres = get_lastfm_genres(artist)
 
         if curr_genre in lastfm_genres:
@@ -258,10 +252,14 @@ def prompt_genre(
             lastfm_genres.insert(0, curr_genre)  # move to front
 
     else:
+        raise NotImplementedError
         lastfm_genres = GENRES
 
     if PLAYER:
-        PLAYER.play(_dir)
+        try:
+            PLAYER.play(_dir)  # requires python-mpv 1.0.6
+        except ValueError:
+            pass
 
     if lastfm_genres:
         input_genre = select_from_list(
@@ -321,7 +319,6 @@ def process_dirs(
 
         artist = first_track_tags["artist"][0]
         ref_genre = get_reference_genre(artist)
-        # print(111, artist, ref_genre, first_track_tags)
         if ref_genre:
             for f in files:
                 set_tag(file_to_tags(f), "genre", ref_genre)
@@ -341,7 +338,7 @@ def process_dirs(
     success = 0
 
     for i, _dir in enumerate(dirs):
-        print(f"{i+1}/{num_dirs}: {os.path.basename(_dir)[:60]}")
+        print(f"{i + 1}/{num_dirs}: {os.path.basename(_dir)[:60]}")
 
         files = get_audio_files(_dir)
 
@@ -412,15 +409,16 @@ def main():
     assert os.path.isdir(TARGET_DIR)
 
     args = parse_args()
-    assert os.path.isdir(args.directory)
+    if not os.path.isdir(args.directory):
+        return
     if args.dump:
         dump_library_genres()
-        sys.exit()
+        return
 
     if not args.auto:
         import mpv  # python-mpv
 
-        os.system("waitdie mpv ; vol --auto")
+        # os.system("waitdie mpv ; vol --auto")
         # default = '`~!@#$%^&*()-=+[{]}\|;:'",<>/?'    # note how space is not included!
         readline.set_completer_delims("\t\n;")
         readline.parse_and_bind("tab: complete")
@@ -449,7 +447,6 @@ def main():
 
 
 if __name__ == "__main__":
-    CONNECTED = have_internet()
     PLAYER = None
 
     main()
