@@ -8,13 +8,14 @@ import unicodedata
 from shutil import rmtree
 from typing import Optional
 
+import mutagen.wave
 import pandas as pd
 import readchar
 import requests
-import mutagen.wave
 from mutagen._file import File
-from mutagen.mp3 import EasyMP3, HeaderNotFoundError
 from mutagen.mp3 import MP3
+from mutagen.mp3 import EasyMP3
+from mutagen.mp3 import HeaderNotFoundError
 from natsort import natsort_keygen
 from numpy import nan
 from titlecase import titlecase
@@ -28,9 +29,9 @@ from dita.discogs.core import search_release
 from dita.discogs.release import apply_transliterations
 from dita.discogs.release import display_release_results
 from dita.discogs.release import get_discogs_tags
+from dita.tag.core import FIELD_ALIASES
 from dita.tag.core import align_lists
 from dita.tag.core import eprint
-from dita.tag.core import FIELD_ALIASES
 from dita.tag.core import file_to_tags
 from dita.tag.core import get_clipboard
 from dita.tag.core import input_with_prefill
@@ -60,7 +61,8 @@ def edit_tag(
     new_val: str = "",
 ):
     """Manually edit tag value. If `field` and/or `new_val` are not passed,
-    user input will be required."""
+    user input will be required.
+    """
     # only called by "e" and cli
 
     def completer(
@@ -143,7 +145,7 @@ def split_composer_and_performers(
         perfs.remove(composer)
 
         if perfs:
-            correct_album = album.partition("[")[0] + f'[{", ".join((perfs))}]'
+            correct_album = album.partition("[")[0] + f"[{', '.join(perfs)}]"
         else:
             correct_album = album
 
@@ -243,7 +245,7 @@ class Tagger:
             and any(self.df.album != "")
             and not (alb := self.df.album.replace("", nan).dropna()).empty
             and (
-                out := sp.getoutput(
+                _out := sp.getoutput(
                     cmd := (
                         # only album needs to be checked, i -think-
                         f"mediainfo {os.path.dirname(SOURCE_DIR)}/downloading/* |"
@@ -251,7 +253,7 @@ class Tagger:
                         # is the number of spaces fixed?
                         "'Album                                    : '"
                         f"{shlex.quote(alb.iloc[0].strip())}"
-                    )
+                    ),
                 )
             )
         ):
@@ -306,7 +308,6 @@ class Tagger:
     @staticmethod
     def add_headers(file: str) -> Optional[EasyMP3]:
         """Why did I duplicate this?"""
-
         # from mutagen.mp3 import HeaderNotFoundError
 
         try:
@@ -331,11 +332,10 @@ class Tagger:
         return tags
 
     def regen_tag_columns(self) -> None:
-        """
-        Generate a new `df` from tags, and overwrite existing columns
+        """Generate a new `df` from tags, and overwrite existing columns
 
-            - `df.update` does NOT create new columns
-            - `df.combine_first` only overwrites null columns
+        - `df.update` does NOT create new columns
+        - `df.combine_first` only overwrites null columns
         """
         # https://github.com/pandas-dev/pandas/issues/39531#issuecomment-771346521
         right = self.df.tags.apply(dict).apply(pd.Series)
@@ -347,8 +347,7 @@ class Tagger:
         ).map(tags_to_columns)
 
     def try_auto(self) -> bool:  # {{{
-        """
-        For an automatic match, the following four conditions are required:
+        """For an automatic match, the following four conditions are required:
 
             1. The existing tags produce at least one Discogs search result
             2. Number of files matches number of tracks in Discogs tracklist
@@ -617,8 +616,8 @@ class Tagger:
         query. Interface implementation is in `cli_search`.
         """
         result_ids = cli_search(
-            artist=f"{self.meta['artist'].replace('/',' ')}",
-            album=f"{self.meta['album'].replace('/',' ')}",
+            artist=f"{self.meta['artist'].replace('/', ' ')}",
+            album=f"{self.meta['album'].replace('/', ' ')}",
         )
         rel = display_release_results(
             result_ids,
@@ -646,6 +645,7 @@ class Tagger:
 
         Returns:
             None
+
         """
         if len(self.df) != len(discogs_tags) and "dur_diff" in self.df.columns:
             print(
@@ -702,7 +702,8 @@ class Tagger:
 
     def select_from_results(self):  # {{{
         """Select Discogs release from search results (the warning that
-        prevented automatic tagging will be ignored)"""
+        prevented automatic tagging will be ignored)
+        """
         # note: set in try_auto
         if self.results.empty:
             print("nothing to do")
@@ -728,11 +729,12 @@ class Tagger:
 
     def delete(self):
         """Delete current directory, as well as all parent directories after
-        following any symlinks"""
+        following any symlinks
+        """
         for _dir in {os.path.dirname(os.path.realpath(f)) for f in self.files}:
-            assert (
-                _dir != TARGET_DIR
-            ), f"FATAL! Will not delete library root: {TARGET_DIR}"
+            assert _dir != TARGET_DIR, (
+                f"FATAL! Will not delete library root: {TARGET_DIR}"
+            )
             rmtree(_dir)
             print("Removed:", _dir)
 
