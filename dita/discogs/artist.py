@@ -85,7 +85,7 @@ class Artist:  # {{{
             results = random_page(results["pagination"]["pages"])
 
         # not calling fillna will lead to float NaNs all over the place
-        self.releases = pd.DataFrame(results["releases"]).fillna(0)
+        self.releases: pd.DataFrame = pd.DataFrame(results["releases"]).fillna(0)
 
         # print(self.releases)
         # raise ValueError
