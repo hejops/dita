@@ -337,8 +337,13 @@ def convert_file(file: str):
 
         if ext == "aiff":
             tags = AIFF(file).tags
-            tags.pop("APIC:cover")
-            return {field: [tags[ab].text[0]] for ab, field in TAG_ABBREVS.items()}
+            if "APIC:cover" in tags:
+                tags.pop("APIC:cover")
+            return {
+                field: [tags[ab].text[0]]
+                for ab, field in TAG_ABBREVS.items()
+                if ab in tags
+            }
 
         if ext == "opus":
             return OggOpus(file)
