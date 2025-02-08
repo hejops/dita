@@ -355,7 +355,7 @@ def convert_file(file: str):
     # print(ext)
 
     if ext.lower() == "mp3":
-        tmp = os.path.dirname(file) + "/tmp"
+        tmp = file + ".tmp"
 
         src_br = MP3(file).info.bitrate // 1000  # pylint: disable=no-member
 
