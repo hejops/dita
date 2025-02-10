@@ -10,22 +10,26 @@ import shutil
 import sys
 import zipfile
 from pathlib import Path
-from subprocess import PIPE, Popen
+from subprocess import PIPE
+from subprocess import Popen
 from typing import Any
 
 from mutagen._file import File
 from mutagen.aiff import AIFF
 from mutagen.easymp4 import EasyMP4
 from mutagen.flac import FLAC
-from mutagen.mp3 import MP3, EasyMP3
+from mutagen.mp3 import MP3
+from mutagen.mp3 import EasyMP3
 from mutagen.mp4 import MP4StreamInfoError
 from mutagen.oggopus import OggOpus
 from tinytag import TinyTag
 from tinytag.tinytag import TinyTagException
 
-from dita.config import CONFIG, SOURCE_DIR
+from dita.config import CONFIG
+from dita.config import SOURCE_DIR
 from dita.tag.core import fill_tracknum
-from dita.tag.io import glob_full, is_audio_file
+from dita.tag.io import glob_full
+from dita.tag.io import is_audio_file
 
 BITRATE_TARGET = int(CONFIG["convert"]["bitrate"])
 CONVERT_EXTENSIONS = [x.lower() for x in CONFIG["convert"]["filetypes"].split(",")]
@@ -38,7 +42,7 @@ else:
     print("Bitrate was not set in config; defaulting to V0")
     BITRATE_ARG = "-V 0"
 
-DISC_REGEX = r"(cd|disco?|disk)( |-)?0?[1-9]{1,2}"
+DISC_REGEX = r"(cd|disco?|disk)[-_ ]?0?[1-9]{1,2}"
 
 # TODO: reused as REQUIRED_FIELDS
 TAG_FIELDS = [
@@ -72,7 +76,7 @@ class Converter:
         self.files = glob_full(
             self.root_dir,
             recursive=True,
-            dirs_only=False,
+            deepest_only=False,
         )
 
         # from pprint import pprint
@@ -89,23 +93,27 @@ class Converter:
             Path(zipf).unlink()
 
     def split_cue(self):
-        """I hate this so much"""
+        # i hate this so much
+
         # cue = file.removesuffix(ext) + "cue"
 
         for cue in [f for f in self.files if f.endswith("cue")]:
-            flac = cue.removesuffix("cue") + "flac"
-            if Path(flac).is_file():
-                args = "shnsplit -t %n -o flac".split() + [
+            for ext in ["flac", "ape"]:
+                lossless = cue.removesuffix("cue") + ext
+                if not Path(lossless).is_file():
+                    continue
+                args = [
+                    *"shnsplit -t %n -o flac".split(),
                     "-a",
-                    os.path.basename(cue),
+                    Path(cue).name,
                     "-f",
                     cue,
                     "-d",
-                    os.path.dirname(cue),
+                    Path(cue).parent,
                     "--",
-                    flac,
+                    lossless,
                 ]
-                execute_chain([args])
+                execute_chain(args)
                 # Path(file).unlink()
 
                 # execute_chain([["cuetag.sh", cue, os.path.dirname(cue) + "/0*.flac"]])
@@ -116,13 +124,13 @@ class Converter:
                 #     f"cuetag.sh {shlex.quote(cue)} {shlex.quote(os.path.dirname(cue))}/0*.flac"
                 # )
 
-                Path(flac).unlink()
+                Path(lossless).unlink()
 
         # regen
         self.files = glob_full(
             self.root_dir,
             recursive=True,
-            dirs_only=False,
+            deepest_only=False,
         )
 
     def flatten_dirs(
@@ -132,7 +140,7 @@ class Converter:
         """Flatten nested directories, to ease grouping/tagging of files."""
         nested = glob_full(
             self.root_dir,
-            dirs_only=True,
+            deepest_only=True,
             mindepth=2,
         )
 
@@ -222,10 +230,12 @@ class Converter:
         # lprint(self.files)
         # raise ValueError
 
-        with multiprocessing.Pool(2) as pool:
+        # 2 cores = 20% cpu
+        # 3 = 25
+        with multiprocessing.Pool(4) as pool:
             _ = pool.map(convert_file, self.files)
 
-        # for file in tqdm(self.files):
+        # for file in self.files:
         #     print(file)
         #     convert_file(file)
 
@@ -234,20 +244,21 @@ def get_merge_dest(file: str) -> str:
     """Attempt to determine the correct 'parent' destination of a file in a
     nested dir. Driven entirely by a somewhat hacky regex.
     """
-    _dir = os.path.dirname(file)
+    d = Path(file).parent
     while True:
-        if _dir == "/":
+        if d == "/":
             raise ValueError
         if not re.search(
             DISC_REGEX,
-            os.path.basename(_dir),
+            Path(d).name,
             flags=re.IGNORECASE,
         ):
-            return _dir
-        _dir = os.path.dirname(_dir)
+            return d.as_posix()
+            # return d
+        d = Path(d).parent
 
 
-def execute_chain(cmd_chain: list[list[str]]):
+def execute_chain(*cmds: list[str]):
     """Execute a sequence of piped commands, as in a shell.
 
     Memory safety not guaranteed.
@@ -255,7 +266,7 @@ def execute_chain(cmd_chain: list[list[str]]):
     # https://github.com/karamanolev/WhatManager2/blob/master/what_transcode/flac_lame.py
     processes = []
     # outs = []
-    for cmd in cmd_chain:
+    for cmd in cmds:
         # print(" ".join(cmd))
         if processes:
             # use stdout of last finished process as stdin
@@ -264,7 +275,7 @@ def execute_chain(cmd_chain: list[list[str]]):
         else:
             p_stdin = None  # stdin specified in cmd str
 
-        if cmd == cmd_chain[-1]:
+        if cmd == cmds[-1]:
             p_stdout = None  # last cmd no need pipe (stdout in cmd)
         else:
             p_stdout = PIPE  # pipe to next cmd
@@ -367,10 +378,8 @@ def convert_file(file: str):
         if src_br < BITRATE_TARGET:
             return
 
-        execute_chain(
-            # weird listy constructions are a lesser evil (compared to shlexing)
-            [f"lame --silent {BITRATE_ARG} --disptime 1".split() + [file, tmp]],
-        )
+        # weird listy constructions are a lesser evil (compared to shlexing)
+        execute_chain([*f"lame --silent {BITRATE_ARG} --disptime 1".split(), file, tmp])
 
         if Path(tmp).is_file():
             shutil.move(tmp, file)
@@ -402,10 +411,8 @@ def convert_file(file: str):
 
     if ext.lower() == "flac":
         execute_chain(
-            [
-                [*"flac --decode --stdout --totally-silent".split(), file],
-                [*f"lame --silent {BITRATE_ARG} -".split(), mp3],
-            ],
+            [*"flac --decode --stdout --totally-silent".split(), file],
+            [*f"lame --silent {BITRATE_ARG} -".split(), mp3],
         )
 
     elif ext in CONVERT_EXTENSIONS:
@@ -414,9 +421,9 @@ def convert_file(file: str):
         # 2 separate commands (in shell, this would require process substitution)
         try:
             # caused by yt-dlp downloads
-            execute_chain([[*"ffmpeg -y -i".split(), file, wav]])
+            execute_chain([*"ffmpeg -y -i".split(), file, wav])
             execute_chain(
-                [[*f"lame --silent {BITRATE_ARG} --disptime 1".split(), wav, mp3]],
+                [*f"lame --silent {BITRATE_ARG} --disptime 1".split(), wav, mp3],
             )
         except PermissionError:
             Path(file).unlink()
