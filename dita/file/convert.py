@@ -98,7 +98,7 @@ class Converter:
         # cue = file.removesuffix(ext) + "cue"
 
         for cue in [f for f in self.files if f.endswith("cue")]:
-            for ext in ["flac", "ape"]:
+            for ext in ["flac", "ape", "wav"]:
                 lossless = cue.removesuffix("cue") + ext
                 if not Path(lossless).is_file():
                     continue
