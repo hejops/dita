@@ -647,7 +647,7 @@ class Tagger:
             None
 
         """
-        if len(self.df) != len(discogs_tags) and "dur_diff" in self.df.columns:
+        if "dur_diff" in self.df.columns:
             print(
                 (
                     "Tracklist lengths do not match: "
@@ -655,10 +655,13 @@ class Tagger:
                 ),
                 discogs_tags[["title", "dur_diff"]],
             )
+
+        if len(self.df) != len(discogs_tags):
             # allow writing artist/album fields, but not track titles
             for tags in self.df.tags:
                 set_tag(tags, "artist", discogs_tags.artist.iloc[0])
                 set_tag(tags, "album", discogs_tags.album.iloc[0])
+            self.summarize()
             return
 
         self.trans_ok(discogs_tags, rel)
