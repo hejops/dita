@@ -370,7 +370,8 @@ def extract_track_artists(
                         artists += [composer] * len(_artists["sub_tracks"])
                     else:
                         artists.append(composer)
-        return artists
+        if artists:
+            return artists
 
     if "artists" in tracks:
         return tracks.artists.dropna().apply(lambda track: track[0]["name"]).to_list()
