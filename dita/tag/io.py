@@ -1,6 +1,7 @@
 import itertools
 import os
 from glob import glob
+from pathlib import Path
 
 import filetype
 import pandas as pd
