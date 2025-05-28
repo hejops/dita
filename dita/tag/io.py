@@ -203,29 +203,11 @@ def is_audio_file(
     if ext == "ape":
         return True
 
-    if os.path.isfile(file) and ext in extensions:
-        # if the byte check fails, expect to see it caught by any media player.
-        # it is not our responsibility to fix this
-
-        if Path(file).stat().st_size == 0:
-            return False
-
-        # in rare cases, guess_extension can produce false positive (header is
-        # present, but file is truncated), leading to failure on MP3(f). in
-        # this case, check the last 16 bytes (which should all be 0xa or 0x5)
-        with open(file, "rb") as f:
-            # print(file)
-            f.seek(-16, os.SEEK_END)
-            fb = f.read()
-            if len(set(fb)) > 1:
-                eprint("File has corrupt tail:", file)
-                return False
-
-        if (e := filetype.guess_extension(file)) and e in extensions:
-            # print("ok", file)
-            return True
-
-        eprint("bad file header:", file)
+    if (
+        not os.path.isfile(file)
+        or ext not in extensions
+        or Path(file).stat().st_size == 0
+    ):
         return False
 
     if os.path.islink(file) and not os.path.isfile(file):
@@ -233,7 +215,21 @@ def is_audio_file(
         os.unlink(file)
         return False
 
-    return False
+    # if either byte check fails, expect to see it caught by any media player.
+    # it is not our responsibility to fix this
+
+    # in rare cases, guess_extension can produce false positive (header is
+    # present, but file is truncated), leading to failure on MP3(f). to avoid
+    # this, also check the last 16 bytes (which should all be 0xa or 0x5)
+    with open(file, "rb") as f:
+        f.seek(-16, os.SEEK_END)  # note the minus
+        tail = set(f.read())
+
+    return (e := filetype.guess_extension(file)) and e in extensions and len(tail) > 1
+
+    # eprint("File has corrupt tail:", file)
+    # # Path(file).unlink()  # if not deleted, will still raise
+    # return False
 
 
 def get_audio_files(src_dir: str) -> list[str]:
