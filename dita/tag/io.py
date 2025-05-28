@@ -193,7 +193,6 @@ def is_audio_file(
     (https://github.com/h2non/filetype.py). This is faster than the similar
     python-magic, but can yield false negatives (e.g. ape).
     """
-
     # m4a ext = mp4 filetype
     if "m4a" in extensions:
         extensions.append("mp4")
@@ -207,12 +206,26 @@ def is_audio_file(
     if os.path.isfile(file) and ext in extensions:
         # if the byte check fails, expect to see it caught by any media player.
         # it is not our responsibility to fix this
-        if (
-            filetype.guess_extension(file)
-            and filetype.guess_extension(file) in extensions
-        ):
+
+        if Path(file).stat().st_size == 0:
+            return False
+
+        # in rare cases, guess_extension can produce false positive (header is
+        # present, but file is truncated), leading to failure on MP3(f). in
+        # this case, check the last 16 bytes (which should all be 0xa or 0x5)
+        with open(file, "rb") as f:
+            # print(file)
+            f.seek(-16, os.SEEK_END)
+            fb = f.read()
+            if len(set(fb)) > 1:
+                eprint("File has corrupt tail:", file)
+                return False
+
+        if (e := filetype.guess_extension(file)) and e in extensions:
+            # print("ok", file)
             return True
-        print("bad file header")
+
+        eprint("bad file header:", file)
         return False
 
     if os.path.islink(file) and not os.path.isfile(file):
