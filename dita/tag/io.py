@@ -226,7 +226,7 @@ def is_audio_file(
         f.seek(-16, os.SEEK_END)  # note the minus
         tail = set(f.read())
 
-    return (e := filetype.guess_extension(file)) and e in extensions and len(tail) > 1
+    return (e := filetype.guess_extension(file)) and e in extensions and len(tail) == 1
 
     # eprint("File has corrupt tail:", file)
     # # Path(file).unlink()  # if not deleted, will still raise
