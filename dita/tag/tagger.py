@@ -233,7 +233,7 @@ class Tagger:
             self.__init__(self.album_dir)
 
         # partially converted
-        if any(self.df.index.map(lambda x: is_audio_file(x, ["flac", "m4a"]))):
+        if any(self.df.index.map(lambda x: is_audio_file(x, {"flac", "m4a"}))):
             print("convert in progress", album_dir)
             return
 

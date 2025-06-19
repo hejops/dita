@@ -8,7 +8,8 @@ token =
 database = discogs/db.csv
 
 [convert]
-filetypes = aif,aiff,ape,flac,m4a,mp3,ogg,opus,wav,wma
+filetypes = aif,aiff,ape,flac,m4a,mp3,ogg,opus,wav,wma,wv,dsf
+# supported: 256, 320, 0-4 (vbr)
 bitrate = 0
 
 [tag]

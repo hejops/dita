@@ -183,7 +183,8 @@ def glob_full(
 
 def is_audio_file(
     file: str,
-    extensions: list[str],
+    # TODO: caller almost always passes a global var, which is then modified
+    extensions: set[str],
 ) -> bool:
     """Check that `file`:
         1. is a file
@@ -200,8 +201,8 @@ def is_audio_file(
 
     ext = file.split(".")[-1].lower()
 
-    # TODO: uhh why is this here?
-    if ext == "ape":
+    # these always fail guess_extension
+    if ext in {"ape", "wv", "dsf"}:
         return True
 
     if (
@@ -219,18 +220,29 @@ def is_audio_file(
     # if either byte check fails, expect to see it caught by any media player.
     # it is not our responsibility to fix this
 
-    # in rare cases, guess_extension can produce false positive (header is
-    # present, but file is truncated), leading to failure on MP3(f). to avoid
-    # this, also check the last 16 bytes (which should all be 0xa or 0x5)
-    with open(file, "rb") as f:
-        f.seek(-16, os.SEEK_END)  # note the minus
-        tail = set(f.read())
+    # if ext == "mp3":
+    #     # in extremely rare cases, guess_extension can produce false positive
+    #     # (header is present, but file is truncated), leading to failure on
+    #     # MP3(f). to avoid this, also check the last 16 bytes (which should all
+    #     # be 0xa or 0x5)
+    #     with open(file, "rb") as f:
+    #         f.seek(-4, os.SEEK_END)  # note the minus
+    #         tail = set(f.read())
+    #         # print(tail, file)
+    #         # assert 0
+    #
+    #     # after tail, TAG... may be found; this is still valid, apparently
+    #     # {0, 1, 2, 5, 10, 39}
+    #     # {0, 97, 1, 255}
+    #     # reading tags and rewriting will mostly zero the tail
+    #     if len(tail) > 4:
+    #         # print(tail)
+    #         return False
 
     return (e := filetype.guess_extension(file)) and e in extensions and len(tail) == 1
 
-    # eprint("File has corrupt tail:", file)
-    # # Path(file).unlink()  # if not deleted, will still raise
-    # return False
+    # assert isinstance(extensions, set), extensions
+    return filetype.guess_extension(file) in extensions
 
 
 def get_audio_files(src_dir: str) -> list[str]:
