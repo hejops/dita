@@ -239,9 +239,6 @@ def is_audio_file(
     #         # print(tail)
     #         return False
 
-    return (e := filetype.guess_extension(file)) and e in extensions and len(tail) == 1
-
-    # assert isinstance(extensions, set), extensions
     return filetype.guess_extension(file) in extensions
 
 
