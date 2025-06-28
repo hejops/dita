@@ -323,7 +323,7 @@ class Tagger:
             if field not in tags:
                 try:
                     tags[field] = ""
-                except TypeError:
+                except (TypeError, ValueError):
                     # corner case: if you end up here, it means mp3 file is not
                     # actually mp3; probably better to check type(tags) outside
                     # the loop
