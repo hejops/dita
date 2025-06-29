@@ -302,11 +302,12 @@ def get_discogs_tags(release: dict) -> pd.DataFrame:  # {{{
             # if not (date := release.get("year")):
             # if master has no date, main_release will also not have it;
             # must get from versions
-            date = min(
+            x = {
                 y
                 for v in dc.d_get(master_release["versions_url"])["versions"]
                 if (y := int(v["released"])) > 0
-            )
+            }
+            date = min(x) if x else 0
     elif not (date := release.get("year")):
         if "notes" in release:
             print(release["notes"])
