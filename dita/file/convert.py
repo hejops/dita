@@ -42,7 +42,8 @@ else:
     print("Bitrate was not set in config; defaulting to V0")
     BITRATE_ARG = "-V 0"
 
-DISC_REGEX = r"(cd|disco?|disk)[-_ ]?0?[1-9]{1,2}"
+# generally, we only need to match 1-9, 01-09, 10-...
+DISC_REGEX = r"(cd|disco?|disk)[-_ ]?0?[0-9]{1,2}"
 
 # TODO: reused as REQUIRED_FIELDS
 TAG_FIELDS = [
