@@ -47,14 +47,15 @@ def durations_match(
 
 def get_file_durations(files: list[str]) -> list[int]:
     """MP3(file) can fail, even if tags are valid!"""
-    durs = []
-    for file in files:
-        try:
-            durs.append(int(MP3(file).info.length))
-        except:  # KeyboardInterrupt:
-            durs.append(0)
+    return [int(MP3(file).info.length) for file in files]
 
-    return durs
+    # durs = []
+    # for file in files:
+    #     try:
+    #         durs.append(int(MP3(file).info.length))
+    #     except:  # KeyboardInterrupt:
+    #         durs.append(0)
+    # return durs
 
 
 def file_in_use(fpath: str) -> bool:
