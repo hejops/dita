@@ -17,7 +17,6 @@ def durations_match(
     max_dur_diff: int = 15,
 ) -> bool:
     """Only if not tty"""
-
     # TODO: try levenshtein dist
 
     if not all(file_durations):
@@ -52,7 +51,7 @@ def get_file_durations(files: list[str]) -> list[int]:
     for file in files:
         try:
             durs.append(int(MP3(file).info.length))
-        except KeyboardInterrupt:
+        except:  # KeyboardInterrupt:
             durs.append(0)
 
     return durs
@@ -77,7 +76,8 @@ def shallow_recurse(
     maxdepth: int = 2,
 ) -> list[str]:
     """Breadth-first search algorithm with upper bound on depth. Returns list
-    of full paths."""
+    of full paths.
+    """
     if maxdepth == 0:
         return [parent]
 
@@ -94,12 +94,13 @@ def shallow_recurse(
 def glob_full(
     root_dir: str,
     recursive: bool = True,
-    dirs_only: bool = True,
+    deepest_only: bool = True,
     first_match: str = "",
     mindepth: int = 1,
 ) -> list[str]:
-    """Attempts to mimic the general functionality of GNU find, with the
-    exception of -maxdepth.
+    """Mimic the general functionality of GNU `find`.
+
+    (with the exception of `-maxdepth`)
 
     Methods like os.listdir are annoying to use because root_dir is not
     included (and has to be rejoined to all results). This takes care of that
@@ -108,11 +109,7 @@ def glob_full(
     TODO: os.scandir
 
     Returns deepest directories by default (to avoid duplication). For files,
-    use get_audio_files() instead.
-
-    Args:
-
-    Returns:
+    use `get_audio_files` instead.
     """
     # basically just listdir
     if not recursive:
@@ -133,7 +130,7 @@ def glob_full(
     if first_match:
         gen = (x for x in items if x.endswith(first_match))
         try:
-            return [os.path.join(root_dir, next(gen))]
+            return [(Path(root_dir) / next(gen)).as_posix()]
         except StopIteration:
             return []
 
@@ -142,42 +139,34 @@ def glob_full(
         # depth 1 has 0 slashes
         # lprint(items)
         items = [x for x in items if x.count("/") >= mindepth]
-        items = [os.path.join(root_dir, x) for x in items]
+        items = [(Path(root_dir) / x).as_posix() for x in items]
         return items
 
-    items = [os.path.join(root_dir, x) for x in items]
+    items = [(Path(root_dir) / x).as_posix() for x in items]
 
-    if dirs_only:
-        # deepest only
+    if deepest_only:
         new_list = []
-        for item in reversed(sorted(items)):
+        for item in sorted(items, reverse=True):
             # a/b/c
             # a/b
             # a
             if any(item in x for x in new_list):
                 continue
-            if not os.path.isdir(item):
+            if not Path(item).is_dir():
+                continue
+            if not any(is_audio_file(f.path, ["mp3"]) for f in os.scandir(item)):
                 continue
             new_list.append(item)
         return new_list
-        # return [x for x in items if os.path.isdir(x)]
 
     return sorted(
         [
             x
             for x in items
-            # if os.path.isfile(x)
+            # if Path(x).is_file()
             # allow dead symlinks (will be cleared by is_audio_file)
-            if not os.path.isdir(x)
-            # a rather absurd corner case caused by 2 files containing a word
-            # which was encoded differently but displayed the same. "Güld'ner"
-            # is the 'invalid' encoding, as it contains an invisible
-            # Nonspacing_Mark -- https://www.compart.com/en/unicode/category/Mn
-            #
-            # however, because some files will naturally have such chars, they
-            # should not automatically be ruled out.
-            # and not any(unicodedata.category(c) == "Mn" for c in x)
-        ]
+            if not Path(x).is_dir()
+        ],
     )
 
 
@@ -197,24 +186,22 @@ def is_audio_file(
     """
     # m4a ext = mp4 filetype
     if "m4a" in extensions:
-        extensions.append("mp4")
+        extensions.add("mp4")
 
-    ext = file.split(".")[-1].lower()
+    ext = file.split(".", maxsplit=1)[-1].lower()
 
     # these always fail guess_extension
     if ext in {"ape", "wv", "dsf"}:
         return True
 
-    if (
-        not os.path.isfile(file)
-        or ext not in extensions
-        or Path(file).stat().st_size == 0
-    ):
+    p = Path(file)
+
+    if not p.is_file() or ext not in extensions or p.stat().st_size == 0:
         return False
 
-    if os.path.islink(file) and not os.path.isfile(file):
+    if p.is_symlink() and not p.is_file():
         eprint("Removing broken symlink:", file)
-        os.unlink(file)
+        p.unlink()
         return False
 
     # if either byte check fails, expect to see it caught by any media player.
@@ -243,14 +230,16 @@ def is_audio_file(
 
 
 def get_audio_files(src_dir: str) -> list[str]:
-    """Return a sorted list of audio files in a directory (non-recursive by
-    default, i.e. top-level), omitting hidden files (starting with '.').
+    """Return a sorted list of audio files in a directory.
 
-    Wrapper for glob_full + is_audio_file.
+    Non-recursive by default, i.e. top-level only. Hidden files (starting with
+    '.') are omitted.
+
+    Wrapper for `glob_full` + `is_audio_file`.
     """
     files = glob_full(
         src_dir,
         recursive=True,
-        dirs_only=False,
+        deepest_only=False,
     )
-    return sorted(f for f in files if is_audio_file(f, ["mp3"]))
+    return sorted(f for f in files if is_audio_file(f, {"mp3"}))
