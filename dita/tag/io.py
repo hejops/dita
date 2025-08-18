@@ -189,7 +189,7 @@ def is_audio_file(
     if "m4a" in extensions:
         extensions.add("mp4")
 
-    ext = file.split(".", maxsplit=1)[-1].lower()
+    ext = file.rsplit(".", maxsplit=1)[-1].lower()
 
     # these always fail guess_extension
     if ext in {"ape", "wv", "dsf"}:
