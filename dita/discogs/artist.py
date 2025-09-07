@@ -388,9 +388,7 @@ class Artist:  # {{{
 
             # somewhat arbitrary; what we generally want to do is check number
             # of composers, and skip if >1. this would require parsing tracklist
-            if is_classical(rel) and (
-                len(rel["artists"]) > 5  # or any(a["anv"] for a in rel["artists"])
-            ):
+            if is_classical(rel) and (len(rel.get("artists", [])) > 5):
                 continue
 
             if require_correct_data and rel["data_quality"] != "Correct":
