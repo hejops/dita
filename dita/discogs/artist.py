@@ -317,8 +317,8 @@ class Artist:  # {{{
 
     def rate_all(
         self,
-        rerate: bool = False,
-        skip_wanted: bool = False,
+        # rerate: bool = False,
+        # skip_wanted: bool = False,
     ) -> None:
         """Rate Discogs releases of an artist, in chronological order.
 
@@ -329,12 +329,6 @@ class Artist:  # {{{
 
         The second stage of filtering then uses a `GET` request to obtain data
         for the release.
-
-        Args:
-            releases: releases listed under artist (not full releases)
-            rerate: [TODO:description]
-            skip_wanted: [TODO:description]
-
         """
         self.filter_by_role("Main")
         # print(len(self))
@@ -347,16 +341,6 @@ class Artist:  # {{{
         # note: it is entirely possible for master release to have a non-zero
         # year, while its main_release has a zero year
         self.releases = self.releases[self.releases.year != 0]
-
-        if not rerate:
-            local_df = pd.read_csv(dc.DISCOGS_CSV)
-            self.filter_from_df(local_df)
-
-        if skip_wanted:
-            # get is only feasible if wantlist small, otherwise write it to file
-            wants = dc.d_get(f"/users/{dc.USERNAME}/wants")
-            wants_df: list[dict] = [r["basic_information"] for r in wants["wants"]]
-            self.filter_from_df(wants_df)
 
         # lprint(all_artist_release_ids, num_rated)
 
@@ -378,13 +362,25 @@ class Artist:  # {{{
         if require_correct_data:
             eprint("Restricting to data quality == Correct")
 
+        ids: set[int] = set()
+
         for _, row in self.releases.iterrows():
             if "type" in row and row.type == "master":
-                _id = int(row.main_release)
+                rid = int(row.main_release)
             else:
-                _id = row.id
+                rid: int = row.id
 
-            rel = dc.d_get(str(_id))
+            if rid in ids:
+                continue
+
+            ids.add(rid)
+
+            rel = dc.d_get(str(rid))
+
+            # strictly speaking, rids and mids should not be mixed, but idc
+            if (mid := rel.get("master_id", 0)) and mid in ids:
+                continue
+            ids.add(mid)
 
             # somewhat arbitrary; what we generally want to do is check number
             # of composers, and skip if >1. this would require parsing tracklist
