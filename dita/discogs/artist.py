@@ -5,19 +5,16 @@ To prevent namespace collision when importing this module, prefer the variable
 name art instead of artist.
 """
 
-import os
 import sys
 import time
 from random import choice
 from typing import Any
-from typing import NoReturn
 
 import pandas as pd
 
 import dita.discogs.core as dc
 from dita.discogs import rate
 from dita.discogs.release import is_classical
-from dita.discogs.release import release_as_str
 from dita.tag.core import eprint
 from dita.tag.core import is_ascii
 from dita.tag.core import select_from_list
@@ -61,6 +58,7 @@ class Artist:  # {{{
         # print(results)
 
         if "pagination" not in results:
+            print(results)
             raise ValueError(self.a_id)
 
         self.total = results["pagination"]["items"]
@@ -139,24 +137,13 @@ class Artist:  # {{{
         if self.releases.empty or before != len(self.releases):
             pass
 
-    def filter_by_format(
-        self,
-        exclude: int = 1,
-    ) -> None:
-        """Typically removes compilations. If exclude=2, removes singles as
-        well.
-        """
+    def filter_by_format(self) -> None:
         if self.releases.empty:
             return
 
-        # print(
-        #     self.releases,
-        #     self.releases.columns,
-        # )
-
         if "rateable" not in self.releases:
             self.releases["rateable"] = self.releases.apply(
-                lambda x: rate.is_rateable(x, exclude=exclude),
+                lambda x: rate.is_rateable(x, exclude=1),
                 axis=1,
             )
             self.releases = self.releases[self.releases.rateable.eq(True)]
@@ -164,11 +151,7 @@ class Artist:  # {{{
             if self.releases.empty:
                 pass
 
-    def filter_by_role(
-        self,
-        # roles: list[str],
-        *roles: str,
-    ) -> None:
+    def filter_by_role(self, *roles: str) -> None:
         """Typical roles are (in order of decreasing importance):
 
         "Main", "Producer", "Appearance", "TrackAppearance", "Co-producer",
@@ -187,9 +170,6 @@ class Artist:  # {{{
 
             if self.releases.empty:
                 pass
-
-    # def jump_to_pos(self):
-    #     ...
 
     # def rate(self):
     #     discogs.rate.rate_releases_of_artist(
@@ -284,42 +264,7 @@ class Artist:  # {{{
         #     # print(self.position, mod)
         #     # raise ValueError
 
-    def show_release(self) -> NoReturn:
-        """Format artist, album, and tracklist (df), cache to df."""
-        os.system("clear")
-        rel_str = release_as_str(self.releases[self.position]["id"])
-        # https://stackoverflow.com/a/45746617
-        # iloc is faster than loc
-        # self.releases.loc[self.releases[self.position], "rel_str"] = rel_str
-        self.releases.iloc[
-            self.position,
-            self.releases.get_loc("rel_str"),
-        ] = rel_str
-        raise ValueError
-
-    # def browse(self) -> None:
-    #     """Basic CLI interface."""
-    #     self.show_release()
-    #     while action := readchar.readchar():
-    #         match action:
-    #             case "j":
-    #                 self.navigate(1)
-    #                 os.system("clear")
-    #                 self.show_release()
-    #             case "k":
-    #                 self.navigate(-1)
-    #             case "r":
-    #                 ...  # rate
-    #             case "R":
-    #                 ...  # random page
-    #             case "x":
-    #                 sys.exit()
-
-    def rate_all(
-        self,
-        # rerate: bool = False,
-        # skip_wanted: bool = False,
-    ) -> None:
+    def rate_all(self) -> None:
         """Rate Discogs releases of an artist, in chronological order.
 
         Filtering is done in two stages. The first stage does not require any
@@ -341,26 +286,6 @@ class Artist:  # {{{
         # note: it is entirely possible for master release to have a non-zero
         # year, while its main_release has a zero year
         self.releases = self.releases[self.releases.year != 0]
-
-        # lprint(all_artist_release_ids, num_rated)
-
-        # if len(release_ids) == num_rated:
-        #     print("All releases rated")
-        #     return
-
-        # print(
-        #     f"{len(self.releases)} releases found, {num_rated} rated locally "
-        #     f"({ 100 * num_rated // len(self.releases) }%)"
-        # )
-
-        # usually desired for classical, because of large discographies, and
-        # because many old releases (< 1960) are unfindable
-        # but beware, as this may quickly lead to many skips and thus 429, e.g.
-        # Morning Musume (101 releases)
-
-        require_correct_data = len(self.releases) > 250
-        if require_correct_data:
-            eprint("Restricting to data quality == Correct")
 
         ids: set[int] = set()
 
@@ -387,11 +312,19 @@ class Artist:  # {{{
             if is_classical(rel) and (len(rel.get("artists", [])) > 5):
                 continue
 
-            if require_correct_data and rel["data_quality"] != "Correct":
+            if (len(self.releases) > 250) and rel["data_quality"] != "Correct":
                 continue
 
             # must be done inside loop, because now full release data is parsed
             if not rate.is_rateable(pd.Series(rel), exclude=1):
+                continue
+
+            # filter vinyl with 2 tracks (unlike cds, these are not labeled as
+            # singles)
+            if (
+                "Vinyl" in {x["name"] for x in rel["formats"]}
+                and len([x for x in rel["tracklist"] if x["title"]]) <= 2
+            ):
                 continue
 
             if rate.rate_release(rel) < 0:
